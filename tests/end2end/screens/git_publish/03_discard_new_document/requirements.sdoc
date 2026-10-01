@@ -1,0 +1,7 @@
+[DOCUMENT]
+TITLE: Requirements
+
+[REQUIREMENT]
+UID: REQ-1
+TITLE: Requirement 1
+STATEMENT: The system shall do A.

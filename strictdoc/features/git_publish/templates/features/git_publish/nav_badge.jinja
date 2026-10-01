@@ -1,0 +1,12 @@
+{#
+  Included by _shared/nav.jinja.html. Server pages are cached as static HTML,
+  so the badge is not rendered here: git_publish.js loads it from
+  /git_publish/badge on every page load and after every edit.
+#}
+<link rel="stylesheet" href="{{ view_object.render_static_url('git_publish.css') }}"/>
+<div
+  id="git_publish_badge"
+  class="git_publish_badge_container"
+  data-badge-url="/git_publish/badge"
+></div>
+<script src="{{ view_object.render_static_url('git_publish.js') }}"></script>

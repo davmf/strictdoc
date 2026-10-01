@@ -1,0 +1,29 @@
+{% extends "components/modal/form.jinja" %}
+{% block modal__context %}confirm{% endblock modal__context %}
+{% block modal_form__header %}
+  Discard changes?
+{% endblock modal_form__header %}
+{% block modal_form__content %}
+<sdoc-modal-message data-testid="confirm-message">
+  <p>
+    Discard all unpublished changes to
+    <b>{{ unpublished_change.get_display_name() }}</b>
+    ({{ unpublished_change.path }})?
+  </p>
+  {%- if unpublished_change.is_untracked %}
+  <p>This is a new file. StrictDoc will delete it. This cannot be undone.</p>
+  {%- else %}
+  <p>StrictDoc will restore the file to its last published state. This cannot be undone.</p>
+  {%- endif %}
+</sdoc-modal-message>
+{% endblock modal_form__content %}
+{% block modal_form__footer_submit %}
+  {% with
+    confirm_href = discard_url ~ "&confirmed=1",
+    confirm_name = "Discard changes",
+    confirm_turbo_method = "delete",
+    confirm_action_type = "delete"
+  %}
+    {% include "components/button/confirm.jinja" %}
+  {% endwith %}
+{% endblock modal_form__footer_submit %}

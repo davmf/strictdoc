@@ -16,6 +16,9 @@ from starlette.responses import Response
 
 from strictdoc import __version__
 from strictdoc.core.project_config import ProjectConfig
+from strictdoc.features.git_publish.git_publish_router import (
+    create_git_publish_router,
+)
 from strictdoc.helpers.coverage import register_code_coverage_hook
 from strictdoc.helpers.deprecation_engine import DEPRECATION_ENGINE
 from strictdoc.helpers.pickle import pickle_load
@@ -126,6 +129,15 @@ def create_app(*, project_config: ProjectConfig) -> FastAPI:
     app.include_router(
         create_other_router(
             project_config=project_config,
+            lock_manager=lock_manager,
+        )
+    )
+    # Registered before the main router, whose catch-all route would
+    # otherwise handle /git_publish.
+    app.include_router(
+        create_git_publish_router(
+            project_config=project_config,
+            app=app,
             lock_manager=lock_manager,
         )
     )

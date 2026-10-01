@@ -49,3 +49,9 @@ def test(project_config: ProjectConfig):
 
     response = client.get("/diff")
     assert response.status_code == 412
+
+    response = client.get("/git_publish")
+    assert response.status_code == 412
+
+    response = client.get("/git_publish/badge")
+    assert response.status_code == 412

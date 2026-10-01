@@ -109,6 +109,7 @@ class ProjectFeature(str, Enum):
     HTML2PDF = "HTML2PDF"
     REQIF = "REQIF"
     DIFF = "DIFF"
+    GIT_PUBLISH = "GIT_PUBLISH"
     PROJECT_STATISTICS_SCREEN = "PROJECT_STATISTICS_SCREEN"
     TREE_MAP_SCREEN = "TREE_MAP_SCREEN"
     TRACEABILITY_MATRIX_SCREEN = "TRACEABILITY_MATRIX_SCREEN"
@@ -1048,6 +1049,9 @@ class ProjectConfig:
 
     def is_activated_diff(self) -> bool:
         return ProjectFeature.DIFF in self.project_features
+
+    def is_activated_git_publish(self) -> bool:
+        return ProjectFeature.GIT_PUBLISH in self.project_features
 
     def is_activated_reqif(self) -> bool:
         return ProjectFeature.REQIF in self.project_features

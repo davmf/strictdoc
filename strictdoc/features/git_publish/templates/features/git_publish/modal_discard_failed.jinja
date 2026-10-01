@@ -1,0 +1,28 @@
+{% extends "components/modal/form.jinja" %}
+{% block modal__context %}confirm{% endblock modal__context %}
+{% block modal_form__header %}
+  Could not discard changes
+{% endblock modal_form__header %}
+{% block modal_form__content %}
+<sdoc-modal-message data-testid="git-publish-discard-error">
+  <p>
+    {{ discard_result.error_message }}
+    The file <b>{{ discard_result.change.path }}</b> may still have
+    unpublished changes.
+  </p>
+  {%- if discard_result.command_result is not none -%}
+  <details data-testid="git-publish-details">
+    <summary>Show details</summary>
+    <pre class="git_publish__command_output">$ {{ discard_result.command_result.get_command_line() }}
+exit code: {{ discard_result.command_result.exit_code }}
+{{ discard_result.command_result.stdout }}{{ discard_result.command_result.stderr }}</pre>
+  </details>
+  {%- endif -%}
+</sdoc-modal-message>
+{% endblock modal_form__content %}
+{% block modal_form__footer_submit %}{% endblock modal_form__footer_submit %}
+{% block modal_form__footer_cancel %}
+  {% with cancel_name = "Close" %}
+    {% include "components/button/cancel.jinja" %}
+  {% endwith %}
+{% endblock modal_form__footer_cancel %}

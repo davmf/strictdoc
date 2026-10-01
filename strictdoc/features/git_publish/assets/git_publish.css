@@ -1,0 +1,79 @@
+/* git_publish: navigation badge */
+
+.git_publish_badge {
+  position: relative;
+}
+
+.git_publish_badge__count {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  box-sizing: border-box;
+
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+
+  color: var(--color-bg-main);
+  background-color: var(--color-bg-contrast);
+}
+
+.git_publish_badge[data-state="unavailable"] {
+  opacity: 0.5;
+}
+
+[data-viewtype="git-publish"] [data-link="git_publish"] {
+  color: var(--color-bg-contrast);
+  border-color: var(--color-bg-contrast);
+  cursor: default;
+}
+
+/* git_publish: changes screen */
+
+.git_publish {
+  padding: var(--base-padding);
+  max-width: 1000px;
+}
+
+.git_publish__summary {
+  font-weight: bold;
+}
+
+.git_publish__message {
+  padding: var(--base-padding);
+  border: 1px solid var(--color-border);
+  border-radius: var(--base-rhythm);
+  background-color: var(--color-bg-secondary);
+}
+
+.git_publish__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.git_publish__table th,
+.git_publish__table td {
+  padding: var(--base-rhythm);
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.git_publish__path {
+  font-size: 0.85em;
+  color: var(--color-fg-secondary);
+}
+
+.git_publish__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--base-rhythm);
+}
+
+.git_publish__command_output {
+  white-space: pre-wrap;
+}

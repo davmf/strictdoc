@@ -50,6 +50,23 @@ releases:
 <<<
 
 [[SECTION]]
+MID: 48dcb2dcc00a41909122d2d5bf9ed490
+TITLE: Unreleased
+
+[TEXT]
+MID: 2e81aff183d2439da5c664065eddc9de
+STATEMENT: >>>
+This release contains the following enhancements:
+
+1\) Added the experimental ``GIT_PUBLISH`` feature. In ``strictdoc server``
+mode, a badge in the navigation bar shows how many documents and assets have
+unpublished changes since the last Git commit. The "Changes since last
+publish" screen lists the changed files and can discard a change.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
 MID: 8a13de7253c14afb8dfc95f88948b22f
 TITLE: 0.30.1 (2026-09-15)
 

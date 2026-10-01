@@ -1,9 +1,12 @@
 import os.path
+import shlex
 import shutil
 import subprocess
 import tempfile
 import threading
 from contextlib import contextmanager
+from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 
@@ -15,6 +18,49 @@ except ImportError:  # pragma: no cover
 
 from strictdoc.core.project_config import ProjectConfig
 from strictdoc.helpers.timing import measure_performance
+
+
+@dataclass(frozen=True)
+class GitCommandResult:
+    """
+    A finished Git command, kept so that the UI can show what StrictDoc ran.
+    """
+
+    command: List[str]
+    exit_code: int
+    stdout: str
+    stderr: str
+
+    def is_success(self) -> bool:
+        return self.exit_code == 0
+
+    def get_command_line(self) -> str:
+        return shlex.join(self.command)
+
+
+class FileStatusKind(str, Enum):
+    MODIFIED = "modified"
+    NEW = "new"
+    DELETED = "deleted"
+
+
+@dataclass(frozen=True)
+class FileStatus:
+    """
+    One path from "git status". The path is relative to the Git root and uses
+    "/" as the separator. A rename produces two entries: the old path as
+    DELETED and the new path as NEW.
+    """
+
+    path: str
+    kind: FileStatusKind
+    is_untracked: bool
+
+
+@dataclass(frozen=True)
+class GitStatusResult:
+    command_result: Optional[GitCommandResult]
+    file_statuses: List[FileStatus]
 
 
 class GitClient:
@@ -449,3 +495,159 @@ class GitClient:
             check=True,
         )
         assert result.returncode == 0, result
+
+    @staticmethod
+    def find_git_root(path_to_directory: str) -> Optional[str]:
+        """
+        Return the top-level directory of the Git working tree that contains
+        path_to_directory, or None if there is no such working tree.
+
+        @relation(SDOC-SRS-213, scope=function)
+        """
+
+        assert os.path.isdir(path_to_directory), path_to_directory
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                cwd=path_to_directory,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except FileNotFoundError:
+            # Git is not installed.
+            return None
+        if result.returncode != 0:
+            return None
+        path_to_git_root = result.stdout.strip()
+        if len(path_to_git_root) == 0:
+            return None
+        return os.path.realpath(path_to_git_root)
+
+    def get_status(self, paths: List[str]) -> GitStatusResult:
+        """
+        Return the status of the given paths and of all files below them.
+        The paths are relative to the Git root.
+
+        @relation(SDOC-SRS-209, scope=function)
+        """
+
+        # "git status" with no pathspec reports the whole repository, which is
+        # never what a caller of this method wants.
+        if len(paths) == 0:
+            return GitStatusResult(command_result=None, file_statuses=[])
+
+        command_result = self._run_git_command(
+            [
+                "status",
+                "--porcelain=v1",
+                "-z",
+                "--untracked-files=all",
+                "--",
+                *paths,
+            ]
+        )
+        if not command_result.is_success():
+            return GitStatusResult(
+                command_result=command_result, file_statuses=[]
+            )
+        return GitStatusResult(
+            command_result=command_result,
+            file_statuses=GitClient._parse_porcelain_v1_z(
+                command_result.stdout
+            ),
+        )
+
+    def restore_paths(self, paths: List[str]) -> GitCommandResult:
+        """
+        Restore tracked paths in both the index and the working tree to their
+        state in HEAD. A path that is staged but missing from HEAD is removed.
+        The paths are relative to the Git root.
+
+        @relation(SDOC-SRS-210, scope=function)
+        """
+
+        assert len(paths) > 0, "restore_paths() requires at least one path."
+        return self._run_git_command(
+            [
+                "restore",
+                "--source=HEAD",
+                "--staged",
+                "--worktree",
+                "--",
+                *paths,
+            ]
+        )
+
+    @staticmethod
+    def _parse_porcelain_v1_z(output: str) -> List[FileStatus]:
+        # Format: "XY PATH\0" per entry. A rename or a copy is followed by one
+        # more field with the original path: "XY NEW_PATH\0OLD_PATH\0".
+        file_statuses: List[FileStatus] = []
+        fields = output.split("\0")
+        field_index = 0
+        while field_index < len(fields):
+            field = fields[field_index]
+            field_index += 1
+            if len(field) < 4:
+                continue
+            status_code = field[:2]
+            path = field[3:]
+            index_status = status_code[0]
+
+            if status_code == "??":
+                file_statuses.append(
+                    FileStatus(
+                        path=path, kind=FileStatusKind.NEW, is_untracked=True
+                    )
+                )
+                continue
+
+            if index_status in ("R", "C"):
+                original_path = fields[field_index]
+                field_index += 1
+                file_statuses.append(
+                    FileStatus(
+                        path=path, kind=FileStatusKind.NEW, is_untracked=False
+                    )
+                )
+                # A copy leaves the original path unchanged.
+                if index_status == "R":
+                    file_statuses.append(
+                        FileStatus(
+                            path=original_path,
+                            kind=FileStatusKind.DELETED,
+                            is_untracked=False,
+                        )
+                    )
+                continue
+
+            if index_status == "A":
+                kind = FileStatusKind.NEW
+            elif "D" in status_code:
+                kind = FileStatusKind.DELETED
+            else:
+                kind = FileStatusKind.MODIFIED
+            file_statuses.append(
+                FileStatus(path=path, kind=kind, is_untracked=False)
+            )
+        return file_statuses
+
+    def _run_git_command(self, arguments: List[str]) -> GitCommandResult:
+        # --literal-pathspecs: treat every path as a file name, so that names
+        # with "*", "?" or a leading ":" never match other files.
+        command = ["git", "--literal-pathspecs", *arguments]
+        result = subprocess.run(
+            command,
+            cwd=self.path_to_git_root,
+            capture_output=True,
+            encoding="utf-8",
+            errors="surrogateescape",
+            check=False,
+        )
+        return GitCommandResult(
+            command=command,
+            exit_code=result.returncode,
+            stdout=result.stdout,
+            stderr=result.stderr,
+        )

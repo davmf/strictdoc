@@ -5568,6 +5568,89 @@ To use the feature with a command-line interface:
 [[/SECTION]]
 
 [[SECTION]]
+MID: df5c1ae92dad4b97bc086bf926b4e81b
+UID: SECTION-UG-Publishing-changes-from-the-web-UI
+TITLE: Publishing changes from the web UI
+
+[TEXT]
+MID: 1c5fa5bb64ab48ef98b7a26b3c99853a
+STATEMENT: >>>
+The experimental ``GIT_PUBLISH`` feature shows a web UI user which documents
+have unpublished changes and lets the user discard them. The user does not
+need Git on the command line. An unpublished change is a difference between a
+file on disk and the last Git commit (``HEAD``).
+
+The feature works only in ``strictdoc server`` mode. Static HTML export
+ignores it.
+
+To activate the feature, add it to ``strictdoc_config.py``:
+
+.. code:: python
+
+    from strictdoc.core.project_config import ProjectConfig
+
+
+    def create_config() -> ProjectConfig:
+        config = ProjectConfig(
+            project_title="My project",
+            project_features=[
+                "GIT_PUBLISH"
+            ],
+        )
+        return config
+
+**Unpublished changes badge**
+
+The navigation bar shows a badge with the number of files that have
+unpublished changes, for example "3 unpublished changes". If there are none,
+the badge reads "All changes published". The badge updates after every edit
+made in the web UI.
+
+**Changes since last publish**
+
+Clicking the badge opens the "Changes since last publish" screen. For each
+changed file, the screen shows:
+
+- the document title, or the file path for a file that is not a document
+- the kind of change: modified, new or deleted
+- a "View changes" link to the changelog of the Diff/changelog screen. The
+  link is shown only if the ``DIFF`` feature is also activated. See
+  [LINK: SECTION-UG-Diff-changelog-screen].
+
+**Discarding changes**
+
+"Discard changes" restores a modified or deleted file to its state in the last
+commit. For a new file, it deletes the file. StrictDoc asks for confirmation
+first. A discarded change cannot be recovered.
+
+**Managed files**
+
+StrictDoc lists and discards changes only for managed files. A managed file is
+one of the following, located under one of the project's input paths:
+
+- a document file that StrictDoc reads, following ``include_doc_paths`` and
+  ``exclude_doc_paths``
+- a file in an ``_assets`` directory, for example an image uploaded through
+  the web UI.
+
+StrictDoc ignores every other file in the repository, including other files in
+the same directories.
+
+**Limitations**
+
+- If the project is not in a Git repository, the server starts normally. The
+  badge and the screen show "Publishing is unavailable: this project is not in
+  a Git repository".
+- The web server has no authentication. If the server listens on an address
+  other than a loopback address (``127.0.0.1``, ``::1`` or ``localhost``),
+  StrictDoc disables "Discard changes" and the screen says why. The list of
+  changes stays available.
+- The feature cannot commit or push changes yet.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
 MID: 0a4573d025f14e61b84aad14349d42f4
 UID: SECTION-UG-HTML2PDF-document-generator
 TITLE: HTML2PDF document generator
@@ -5926,6 +6009,10 @@ limitations.
 The user interface and the underlying backend implementation are not yet
 autonomous from the command-line workflow. A user still has to access the
 command line to run the server and commit the documents to Git manually.
+
+With the experimental ``GIT_PUBLISH`` feature, the web UI shows which documents
+have unpublished changes and can discard them. See
+[LINK: SECTION-UG-Publishing-changes-from-the-web-UI].
 
 The currently supported workflow for the ``server`` command must be hybrid:
 

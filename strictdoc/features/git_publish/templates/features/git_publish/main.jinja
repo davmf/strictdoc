@@ -1,0 +1,85 @@
+<div class="main">
+<div class="git_publish" data-testid="git-publish-screen">
+
+{%- if not view_object.is_available -%}
+
+  <p
+    class="git_publish__message"
+    data-testid="git-publish-unavailable"
+  >{{ view_object.UNAVAILABLE_MESSAGE }}</p>
+
+{%- else -%}
+
+  <p
+    class="git_publish__summary"
+    data-testid="git-publish-summary"
+  >{{ view_object.get_badge_text() }}</p>
+
+  {%- if not view_object.is_write_allowed -%}
+  <p
+    class="git_publish__message"
+    data-testid="git-publish-write-not-allowed"
+  >{{ view_object.WRITE_NOT_ALLOWED_MESSAGE }}</p>
+  {%- endif -%}
+
+  {%- if view_object.unpublished_changes|length > 0 -%}
+  {%- set changelog_url = view_object.get_changelog_url() -%}
+  <table class="git_publish__table" data-testid="git-publish-changes">
+    <thead>
+      <tr>
+        <th>File</th>
+        <th>Change</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {%- for change_ in view_object.unpublished_changes -%}
+      <tr
+        data-testid="git-publish-change"
+        data-path="{{ change_.path }}"
+        data-kind="{{ change_.kind.value }}"
+      >
+        <td>
+          <div
+            class="git_publish__name"
+            data-testid="git-publish-change-name"
+          >{{ change_.get_display_name() }}</div>
+          {%- if change_.document_title is not none -%}
+          <div class="git_publish__path">{{ change_.path }}</div>
+          {%- endif -%}
+        </td>
+        <td data-testid="git-publish-change-kind">{{ change_.kind.value }}</td>
+        <td class="git_publish__actions">
+          {%- if changelog_url is not none -%}
+          <a
+            class="action_button"
+            href="{{ changelog_url }}"
+            data-testid="git-publish-view-changes-action"
+          >View changes</a>
+          {%- endif -%}
+          {%- if view_object.is_write_allowed -%}
+          <a
+            class="action_button"
+            href="{{ view_object.get_discard_url(change_) }}"
+            data-turbo="true"
+            data-turbo-method="delete"
+            data-testid="git-publish-discard-action"
+          >Discard changes</a>
+          {%- else -%}
+          <span
+            class="action_button action_button--disabled"
+            title="{{ view_object.WRITE_NOT_ALLOWED_MESSAGE }}"
+            data-testid="git-publish-discard-action-disabled"
+          >Discard changes</span>
+          {%- endif -%}
+        </td>
+      </tr>
+    {%- endfor -%}
+    </tbody>
+  </table>
+  {%- endif -%}
+
+{%- endif -%}
+
+</div>
+</div>

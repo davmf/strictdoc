@@ -5502,6 +5502,26 @@ def create_main_router(
 
     def notify_clients_after_file_change() -> None:
         build_error = rebuild_index_after_file_change()
+        broadcast_rebuild_result(build_error)
+
+    def rebuild_after_feature_file_change() -> Optional[str]:
+        """
+        Rebuild the index after a feature router has changed documents or
+        assets on disk, for example the GIT_PUBLISH "Discard changes" action.
+        Return the build error, or None.
+        """
+
+        build_error = rebuild_index_after_file_change()
+        if build_error is None:
+            with lock_manager.acquire_global_write():
+                html_generator.export_project_assets(
+                    traceability_index=export_action.traceability_index,
+                    export_output_html_root=project_config.export_output_html_root,
+                )
+        broadcast_rebuild_result(build_error)
+        return build_error
+
+    def broadcast_rebuild_result(build_error: Optional[str]) -> None:
         message = "reload" if build_error is None else f"error:{build_error}"
         if build_error is not None:
             print(f"WATCH:    rebuild failed:\n{build_error}")  # noqa: T201
@@ -5510,6 +5530,13 @@ def create_main_router(
             asyncio.run_coroutine_threadsafe(
                 manager.broadcast(message), event_loop
             )
+
+    # Feature routers that change files on disk use these instead of
+    # importing this module's internals.
+    app.state.rebuild_after_feature_file_change = (
+        rebuild_after_feature_file_change
+    )
+    app.state.get_traceability_index = lambda: export_action.traceability_index
 
     if project_config.watch_enabled:
         app.state.document_watcher = DocumentWatcher(

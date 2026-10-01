@@ -1,0 +1,30 @@
+{%- if not view_object.is_available -%}
+<a
+  data-link="git_publish"
+  class="nav_button git_publish_badge"
+  href="/git_publish"
+  title="{{ view_object.UNAVAILABLE_MESSAGE }}"
+  aria-label="{{ view_object.UNAVAILABLE_MESSAGE }}"
+  data-testid="git-publish-badge"
+  data-state="unavailable"
+>
+  {% include "icons/ico16_sync.svg" %}
+</a>
+{%- else -%}
+{%- set badge_text = view_object.get_badge_text() -%}
+<a
+  data-link="git_publish"
+  class="nav_button git_publish_badge"
+  href="/git_publish"
+  title="{{ badge_text }}"
+  aria-label="{{ badge_text }}"
+  data-testid="git-publish-badge"
+  data-state="{{ 'changed' if view_object.unpublished_changes|length > 0 else 'published' }}"
+  data-unpublished-count="{{ view_object.unpublished_changes|length }}"
+>
+  {% include "icons/ico16_sync.svg" %}
+  {%- if view_object.unpublished_changes|length > 0 -%}
+  <span class="git_publish_badge__count">{{ view_object.unpublished_changes|length }}</span>
+  {%- endif -%}
+</a>
+{%- endif -%}

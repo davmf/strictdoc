@@ -1444,6 +1444,141 @@ RELATIONS:
 [[/SECTION]]
 
 [[SECTION]]
+MID: 72cbaf1e5c5240b9bd7e49dd584082d5
+TITLE: Screen: Changes since last publish
+
+[REQUIREMENT]
+MID: 69d594197453404096970da03915d8ae
+UID: SDOC-SRS-208
+STATUS: Active
+TITLE: Unpublished changes badge
+STATEMENT: >>>
+Where the GIT_PUBLISH feature is activated, while StrictDoc runs as a web
+server, StrictDoc shall show a badge in the navigation bar with the number of
+managed files that have unpublished changes.
+
+If there are no unpublished changes, the badge shall read "All changes
+published".
+<<<
+RATIONALE: >>>
+A user who edits documents in the web UI needs to see whether the edits are
+recorded in Git, without using Git on the command line.
+<<<
+RELATIONS:
+- TYPE: Parent
+  VALUE: SDOC-SSS-33
+
+[REQUIREMENT]
+MID: ad5c44a7a92c40bbb8d8df8f7f9e22bc
+UID: SDOC-SRS-209
+STATUS: Active
+TITLE: List of unpublished changes
+STATEMENT: >>>
+When a user opens the unpublished changes badge, StrictDoc shall show a
+"Changes since last publish" screen. For each managed file with unpublished
+changes, the screen shall show:
+
+- the document title, or the file path for a non-document file
+- the kind of change: modified, new or deleted
+- where the DIFF feature is activated, a link to the changelog between the
+  last commit and the files on disk.
+<<<
+RELATIONS:
+- TYPE: Parent
+  VALUE: SDOC-SSS-33
+
+[REQUIREMENT]
+MID: d07513c76b5d4b0eaca5ad286cbfe0ff
+UID: SDOC-SRS-210
+STATUS: Active
+TITLE: Discard unpublished changes
+STATEMENT: >>>
+When a user selects "Discard changes" for a managed file, StrictDoc shall ask
+for confirmation. The confirmation shall name the file and state that the
+action cannot be undone.
+
+When the user confirms, StrictDoc shall:
+
+- restore a modified or deleted tracked file to its state in the last commit
+- delete a new untracked file
+- rebuild the document tree and show the result without a manual page reload.
+<<<
+RELATIONS:
+- TYPE: Parent
+  VALUE: SDOC-SSS-33
+
+[REQUIREMENT]
+MID: 589cc2cbc9ff4fc59c9791c47224c4ad
+UID: SDOC-SRS-211
+STATUS: Active
+TITLE: Up-to-date unpublished changes
+STATEMENT: >>>
+When StrictDoc writes an edit to disk, or when the file watcher detects a
+change to a document file, StrictDoc shall update the unpublished changes badge
+without a manual page reload.
+<<<
+RELATIONS:
+- TYPE: Parent
+  VALUE: SDOC-SSS-33
+
+[REQUIREMENT]
+MID: debd0666c5b14f73be7c88fbdb665981
+UID: SDOC-SRS-212
+STATUS: Active
+TITLE: Managed files
+STATEMENT: >>>
+StrictDoc shall list and discard unpublished changes only for managed files. A
+managed file is one of the following, located under one of the project's input
+paths:
+
+- a document file that StrictDoc reads when it builds the document tree
+- a file in an "_assets" directory.
+<<<
+RATIONALE: >>>
+A Git repository with documentation often contains other files, such as source
+code or notes. StrictDoc must not change files that it does not manage.
+<<<
+RELATIONS:
+- TYPE: Parent
+  VALUE: SDOC-SSS-33
+
+[REQUIREMENT]
+MID: b3256c00e3364c0eb5aabeeb29a1a1a3
+UID: SDOC-SRS-213
+STATUS: Active
+TITLE: Project outside a Git repository
+STATEMENT: >>>
+If the project is not in a Git working tree, then StrictDoc shall start the
+web server normally and show "Publishing is unavailable: this project is not
+in a Git repository" in place of the publishing controls.
+<<<
+RELATIONS:
+- TYPE: Parent
+  VALUE: SDOC-SSS-33
+
+[REQUIREMENT]
+MID: 90c5e48373824dd086200e16f624fa4a
+UID: SDOC-SRS-214
+STATUS: Active
+TITLE: Publishing actions on a network address
+STATEMENT: >>>
+If the web server listens on an address other than a loopback address, then
+StrictDoc shall disable the publishing actions that change files and show the
+reason.
+
+The list of unpublished changes shall stay available.
+<<<
+RATIONALE: >>>
+The web server has no authentication. On a network address, anyone who can
+reach the server could discard changes.
+<<<
+RELATIONS:
+- TYPE: Parent
+  VALUE: SDOC-SSS-33
+
+[[/SECTION]]
+
+[[SECTION]]
 MID: 8380fb39beb04d1c9370733bcfafbc01
 TITLE: Content search
 

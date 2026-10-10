@@ -70,6 +70,11 @@ class SDocFormat(Format):
     ) -> SDocDocument:
         return SDReader().read_from_file(doc_file.full_path, project_config)
 
+    def write_document_to_file(
+        self, document: SDocDocument, project_config: ProjectConfig
+    ) -> None:
+        SDWriter(project_config).write_to_file(document)
+
     @staticmethod
     def supports_grammar() -> bool:
         return True

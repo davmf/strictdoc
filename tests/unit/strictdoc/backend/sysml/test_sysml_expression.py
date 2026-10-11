@@ -43,12 +43,14 @@ def test_04_comparisons_and_boolean_operators():
 
 
 def test_05_feature_references_with_quotes_and_qualified_names():
-    assert parse_expression("pump::flow") == FeatureReference(name="pump::flow")
-    assert parse_expression("'Pump A'.flow") == FeatureReference(
-        name="Pump A.flow"
-    ) or parse_expression("'Pump A'.flow") == FeatureReference(
-        name="Pump A::flow"
-    )
+    qualified_ = parse_expression("pump::flow")
+    assert isinstance(qualified_, FeatureReference)
+    assert qualified_.name == "pump::flow"
+    assert qualified_.path == ["pump", "flow"]
+    chain_ = parse_expression("'Pump A'.flow.rate")
+    assert isinstance(chain_, FeatureReference)
+    assert chain_.name == "Pump A.flow.rate"
+    assert chain_.path == ["Pump A", "flow", "rate"]
 
 
 def test_06_invocation_with_positional_and_named_arguments():

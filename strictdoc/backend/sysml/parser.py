@@ -130,9 +130,26 @@ def _unquote_name(raw_name: str) -> str:
     return raw_name
 
 
+_QUOTED_SEGMENT_PATTERN = re.compile(r"'((?:[^'\\]|\\.)*)'")
+
+
 def _qualified_name(raw_name: str) -> str:
-    segments = _NAME_SEGMENT_PATTERN.findall(raw_name)
-    return "::".join(_unquote_name(segment_) for segment_ in segments)
+    """
+    Reference text with quoted segments unquoted and separators kept.
+
+    `'SYS-1'` becomes SYS-1, and `baseSteady.configuration` stays as written.
+    """
+    return _QUOTED_SEGMENT_PATTERN.sub(
+        lambda match_: re.sub(r"\\(.)", r"\1", match_.group(1)), raw_name
+    )
+
+
+def _reference_path(raw_name: str) -> List[str]:
+    """Unquoted segments of a reference, in order, across `::` and `.`."""
+    return [
+        _unquote_name(segment_)
+        for segment_ in _NAME_SEGMENT_PATTERN.findall(raw_name)
+    ]
 
 
 def _doc_text(raw_comment: str) -> str:
@@ -320,12 +337,15 @@ def _convert_core(
             by=_qualified_name(core.by) if core.by else None,
             annotations=annotations,
             span=span,
+            by_path=_reference_path(core.by) if core.by else [],
+            source_text=context.source_of(core),
         )
     if class_name == "Verify":
         return SysMLVerify(
             requirement=_qualified_name(core.requirement),
             annotations=annotations,
             span=span,
+            source_text=context.source_of(core),
         )
     if class_name == "Allocate":
         return SysMLAllocate(
@@ -333,17 +353,29 @@ def _convert_core(
             target=_qualified_name(core.target),
             annotations=annotations,
             span=span,
+            source_path=_reference_path(core.source),
+            target_path=_reference_path(core.target),
         )
     if class_name == "Succession":
+        guard_text: Optional[str] = None
+        guard: Optional[Expression] = None
+        if core.is_guarded:
+            guard_text = _normalize_expression_text(core.guard)
+            guard = _parse_expression_or_none(guard_text)
         return SysMLSuccession(
             first=_qualified_name(core.first),
             then=_qualified_name(core.then),
             annotations=annotations,
             span=span,
+            first_path=_reference_path(core.first),
+            then_path=_reference_path(core.then),
+            guard_text=guard_text,
+            guard=guard,
         )
     if class_name == "Then":
         return SysMLThen(
             target=_qualified_name(core.target),
+            target_path=_reference_path(core.target),
             annotations=annotations,
             span=span,
         )
@@ -360,18 +392,21 @@ def _convert_core(
             condition_text=condition_text,
             condition=_parse_expression_or_none(condition_text),
             target=_qualified_name(core.target),
+            target_path=_reference_path(core.target),
             annotations=annotations,
             span=span,
         )
     if class_name == "ElseThen":
         return SysMLElseThen(
             target=_qualified_name(core.target),
+            target_path=_reference_path(core.target),
             annotations=annotations,
             span=span,
         )
     if class_name == "Perform":
         return SysMLPerform(
             target=_qualified_name(core.target),
+            target_path=_reference_path(core.target),
             annotations=annotations,
             span=span,
         )
@@ -430,6 +465,14 @@ def _convert_specializations(
     return result
 
 
+def _redefined_names(specializations: List[SysMLSpecialization]) -> List[str]:
+    names: List[str] = []
+    for specialization_ in specializations:
+        if specialization_.operator in (":>>", "redefines"):
+            names.extend(specialization_.targets)
+    return names
+
+
 def _convert_declaration(
     core: Any, context: _ConversionContext, annotations: List[str]
 ) -> SysMLMember:
@@ -440,13 +483,23 @@ def _convert_declaration(
         _unquote_name(core.short_name.name) if core.short_name else None
     )
     name = _unquote_name(core.name) if core.name else None
-    specializations = _convert_specializations(core.specializations)
+    specializations: List[SysMLSpecialization] = []
+    if core.head_specialization is not None:
+        specializations.extend(
+            _convert_specializations([core.head_specialization])
+        )
+    specializations.extend(_convert_specializations(core.specializations))
+    redefines = _redefined_names(specializations)
     multiplicity = core.multiplicity.text if core.multiplicity else None
     value_text: Optional[str] = None
     if core.value is not None:
         value_text = _normalize_expression_text(core.value.text)
+    default_text: Optional[str] = None
+    if core.default is not None:
+        default_text = _normalize_expression_text(core.default.text)
     span = context.span_of(core)
     source_text = context.source_of(core)
+    is_abstract = "abstract" in modifiers
 
     if (
         (kind in (None, "attribute"))
@@ -481,6 +534,14 @@ def _convert_declaration(
             annotations=annotations,
             span=span,
             source_text=source_text,
+            is_abstract=is_abstract,
+            redefines=redefines,
+            default_text=default_text,
+            default_value=(
+                _parse_expression_or_none(default_text)
+                if default_text is not None
+                else None
+            ),
         )
 
     members: List[SysMLMember] = []
@@ -519,4 +580,12 @@ def _convert_declaration(
         result_expression=result_expression,
         span=span,
         source_text=source_text,
+        is_abstract=is_abstract,
+        redefines=redefines,
+        default_text=default_text,
+        default_value=(
+            _parse_expression_or_none(default_text)
+            if default_text is not None
+            else None
+        ),
     )

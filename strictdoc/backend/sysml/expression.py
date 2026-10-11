@@ -40,7 +40,15 @@ class BooleanLiteral:
 
 @dataclass
 class FeatureReference:
+    """
+    A feature reference such as `a`, `a::b` or `a.b.c`.
+
+    name is the reference as written, with unquoted segments. path lists the
+    segments in order, for example ["a", "b", "c"].
+    """
+
     name: str
+    path: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -281,21 +289,20 @@ class _ExpressionParser:
         return "".join(unit_parts)
 
     def _parse_reference(self, first_token: _Token) -> Expression:
-        name_parts: List[str] = [self._segment_text(first_token)]
+        path: List[str] = [self._segment_text(first_token)]
+        name = path[0]
         while True:
             token = self._peek()
             if token is None or token.text not in ("::", "."):
                 break
             self._advance()
-            name_parts.append(self._segment_text(self._advance()))
-        separator = "::"
-        name = name_parts[0]
-        for part_ in name_parts[1:]:
-            name = f"{name}{separator}{part_}"
+            segment = self._segment_text(self._advance())
+            path.append(segment)
+            name = f"{name}{token.text}{segment}"
         token = self._peek()
         if token is not None and token.text == "(":
             return self._parse_invocation(name)
-        return FeatureReference(name=name)
+        return FeatureReference(name=name, path=path)
 
     @staticmethod
     def _segment_text(token: _Token) -> str:

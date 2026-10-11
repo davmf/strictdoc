@@ -294,3 +294,144 @@ def test_18_parse_file_reads_utf8_and_strips_bom(tmp_path):
     model = SysMLParser.parse_file(str(path))
     assert model.members[0].name == "P"
     assert model.file_path == str(path)
+
+
+def test_19_prefixes_abstract_derived_readonly_end_individual():
+    model = _parse(
+        """\
+package P {
+    abstract part def <'AL-INS'> Instrument :> Configuration;
+    derived attribute total : Real;
+    readonly attribute fixed : Real = 1;
+    end part source : Port;
+    individual part sample : Item;
+}
+"""
+    )
+    members = model.members[0].members
+    assert members[0].is_abstract is True
+    assert members[0].short_name == "AL-INS"
+    assert members[1].modifiers == ["derived"]
+    assert members[2].modifiers == ["readonly"]
+    assert members[3].modifiers == ["end"]
+    assert members[4].modifiers == ["individual"]
+
+
+def test_20_default_values_with_and_without_equals():
+    model = _parse(
+        """\
+package P {
+    attribute invalid : Boolean default false;
+    attribute x : Natural default = 3;
+    attribute time : DurationValue default 0 [s];
+}
+"""
+    )
+    members = model.members[0].members
+    assert members[0].default_text == "false"
+    assert members[0].default_value.value is False
+    assert members[1].default_text == "3"
+    assert members[2].default_text == "0 [s]"
+    assert members[2].value_text is None
+
+
+def test_21_anonymous_redefinitions_with_and_without_keyword_or_type():
+    model = _parse(
+        """\
+package P {
+    part def Config {
+        :>> nominal = 10 [s];
+        attribute :>> count = 24;
+        part :>> stations { attribute :>> capacity = 4; }
+        part :>> configuration : BaseInstrument;
+    }
+}
+"""
+    )
+    members = model.members[0].members[0].members
+    assert members[0].name is None
+    assert members[0].redefines == ["nominal"]
+    assert members[0].value_text == "10 [s]"
+    assert members[1].redefines == ["count"]
+    assert members[1].value_text == "24"
+    assert members[2].redefines == ["stations"]
+    assert members[2].has_body is True
+    assert members[2].members[0].redefines == ["capacity"]
+    assert members[3].redefines == ["configuration"]
+    assert members[3].specializations[1].targets == ["BaseInstrument"]
+
+
+def test_22_dot_feature_chains_in_references_and_expressions():
+    model = _parse(
+        """\
+package P {
+    satisfy 'SYS-1' by baseSteady.configuration.cartridge;
+    allocate sample.intake.prime to stations;
+    attribute :>> nominal = PrimingTime(pressure = controller.setPressure);
+}
+"""
+    )
+    satisfy_, allocate_, attribute_ = model.members[0].members
+    assert satisfy_.by == "baseSteady.configuration.cartridge"
+    assert satisfy_.by_path == ["baseSteady", "configuration", "cartridge"]
+    assert allocate_.source_path == ["sample", "intake", "prime"]
+    assert allocate_.target_path == ["stations"]
+    invocation_ = attribute_.value
+    assert type(invocation_).__name__ == "Invocation"
+    assert invocation_.arguments[0].value.path == [
+        "controller",
+        "setPressure",
+    ]
+
+
+def test_23_guarded_successions_after_decide():
+    model = _parse(
+        """\
+package P {
+    action step {
+        decide bubble1;
+        first bubble1 if not Bernoulli(p = pBubble) then primed;
+        first bubble2 then done;
+        first invalidCheck if sample.invalid then reflexRetest;
+    }
+}
+"""
+    )
+    members = model.members[0].members[0].members
+    guarded_ = members[1]
+    assert guarded_.first == "bubble1"
+    assert guarded_.then == "primed"
+    assert guarded_.guard_text == "not Bernoulli(p = pBubble)"
+    assert type(guarded_.guard).__name__ == "UnaryOperation"
+    assert members[2].guard_text is None
+    assert members[3].guard_text == "sample.invalid"
+
+
+def test_24_perform_action_with_body_and_bound_parameters():
+    model = _parse(
+        """\
+package P {
+    part def Station {
+        perform action run : Proc { in part :>> cart = cartridge; }
+    }
+}
+"""
+    )
+    perform_ = model.members[0].members[0].members[0]
+    assert perform_.modifiers == ["perform"]
+    assert perform_.kind == "action"
+    assert perform_.name == "run"
+    assert perform_.has_body is True
+    bound_ = perform_.members[0]
+    assert bound_.modifiers == ["in"]
+    assert bound_.kind == "part"
+    assert bound_.redefines == ["cart"]
+    assert bound_.value_text == "cartridge"
+
+
+def test_25_not_in_expressions():
+    model = _parse("package P { attribute :>> ok = not sample.invalid; }")
+    attribute_ = model.members[0].members[0]
+    assert type(attribute_.value).__name__ == "UnaryOperation"
+    assert attribute_.value.operator == "not"
+    assert attribute_.value.operand.path == ["sample", "invalid"]

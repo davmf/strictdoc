@@ -118,6 +118,10 @@ class SysMLAttribute:
     annotations: List[str]
     span: SysMLSpan
     source_text: str
+    is_abstract: bool = False
+    redefines: List[str] = field(default_factory=list)
+    default_text: Optional[str] = None
+    default_value: Optional[Expression] = None
 
 
 @dataclass
@@ -167,6 +171,11 @@ class SysMLElement:
         """The short name if present, otherwise None."""
         return self.short_name
 
+    is_abstract: bool = False
+    redefines: List[str] = field(default_factory=list)
+    default_text: Optional[str] = None
+    default_value: Optional[Expression] = None
+
 
 @dataclass
 class SysMLRequireConstraint:
@@ -192,6 +201,8 @@ class SysMLSatisfy:
     by: Optional[str]
     annotations: List[str]
     span: SysMLSpan
+    by_path: List[str] = field(default_factory=list)
+    source_text: str = ""
 
 
 @dataclass
@@ -199,6 +210,7 @@ class SysMLVerify:
     requirement: str
     annotations: List[str]
     span: SysMLSpan
+    source_text: str = ""
 
 
 @dataclass
@@ -207,6 +219,8 @@ class SysMLAllocate:
     target: str
     annotations: List[str]
     span: SysMLSpan
+    source_path: List[str] = field(default_factory=list)
+    target_path: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -215,6 +229,10 @@ class SysMLSuccession:
     then: str
     annotations: List[str]
     span: SysMLSpan
+    first_path: List[str] = field(default_factory=list)
+    then_path: List[str] = field(default_factory=list)
+    guard_text: Optional[str] = None
+    guard: Optional[Expression] = None
 
 
 @dataclass
@@ -222,6 +240,7 @@ class SysMLThen:
     target: str
     annotations: List[str]
     span: SysMLSpan
+    target_path: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -241,6 +260,7 @@ class SysMLIfThen:
     target: str
     annotations: List[str]
     span: SysMLSpan
+    target_path: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -248,6 +268,7 @@ class SysMLElseThen:
     target: str
     annotations: List[str]
     span: SysMLSpan
+    target_path: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -255,6 +276,7 @@ class SysMLPerform:
     target: str
     annotations: List[str]
     span: SysMLSpan
+    target_path: List[str] = field(default_factory=list)
 
 
 @dataclass

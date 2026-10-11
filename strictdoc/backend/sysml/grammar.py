@@ -114,8 +114,9 @@ LineNote:
 
 Declaration:
     (
-        modifiers+=Modifier kind=DeclKind?
-        | kind=DeclKind
+        modifiers*=Modifier kind=DeclKind
+        | modifiers+=Modifier
+        | head_specialization=Specialization
     )
     is_def?='def'
     short_name=ShortName?
@@ -123,12 +124,14 @@ Declaration:
     specializations*=Specialization
     multiplicity=Multiplicity?
     value=ValueAssignment?
+    default=DefaultValue?
     (body=Body | ';')
 ;
 
 Modifier:
     'variation' | 'variant' | 'ref' | 'in' | 'out' | 'inout' | 'return'
-    | 'subject'
+    | 'subject' | 'abstract' | 'derived' | 'readonly' | 'end'
+    | 'individual' | 'perform'
 ;
 
 DeclKind:
@@ -157,6 +160,10 @@ ValueAssignment:
     '=' text=/[^;{}]+/
 ;
 
+DefaultValue:
+    'default' ('=')? text=/[^;{}]+/
+;
+
 Dependency:
     'dependency'
     ('from' sources+=QualifiedName[','])?
@@ -178,7 +185,9 @@ Allocate:
 ;
 
 Succession:
-    'first' first=QualifiedName 'then' then=QualifiedName ';'
+    'first' first=QualifiedName
+    (is_guarded?='if' guard=Guard)?
+    'then' then=QualifiedName ';'
 ;
 
 Then:
@@ -218,6 +227,10 @@ Name:
 ;
 
 QualifiedName:
-    /(?:'(?:[^'\\]|\\.)*'|[A-Za-z_][A-Za-z0-9_]*)(?:::(?:'(?:[^'\\]|\\.)*'|[A-Za-z_][A-Za-z0-9_]*))*/
+    /(?:'(?:[^'\\]|\\.)*'|[A-Za-z_][A-Za-z0-9_]*)(?:(?:::|\.)(?:'(?:[^'\\]|\\.)*'|[A-Za-z_][A-Za-z0-9_]*))*/
+;
+
+Guard:
+    /(?:(?!\bthen\b)[^;{}])+/
 ;
 """

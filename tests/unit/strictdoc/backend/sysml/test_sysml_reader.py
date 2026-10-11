@@ -150,7 +150,7 @@ package 'P' {
     assert "p.sysml, line 2" in str(exc_info.value)
 
 
-def test_06_satisfy_target_not_found_is_an_error():
+def test_06_satisfy_target_not_in_file_becomes_a_placeholder_node():
     text = """\
 package 'D' {
     part def Pump {
@@ -158,8 +158,108 @@ package 'D' {
     }
 }
 """
+    document = SysMLReader.read_from_string(
+        text, file_path="d.sysml", relative_path="d.sysml"
+    )
+    placeholders = _nodes_of_type(document, "SATISFY")
+    assert len(placeholders) == 1
+    assert (
+        placeholders[0].get_field_by_name("SATISFIED_BY_PATH").get_text_value()
+        == "nothing_here"
+    )
+    assert placeholders[0].relations[0].role == "Satisfies"
+
+
+def test_06b_satisfy_outside_element_without_by_is_an_error():
+    text = """\
+package 'D' {
+    satisfy 'SYS-1';
+}
+"""
     with pytest.raises(StrictDocException) as exc_info:
         SysMLReader.read_from_string(
             text, file_path="d.sysml", relative_path="d.sysml"
         )
-    assert "nothing_here" in str(exc_info.value)
+    assert "d.sysml, line 2" in str(exc_info.value)
+
+
+def test_07_anonymous_redefinitions_get_owner_qualified_unique_uids():
+    text = """\
+package 'D' {
+    part def Scenario {
+        part :>> stations;
+        part :>> stations;
+        part :>> configuration : Config;
+    }
+    part def Other {
+        part :>> stations;
+    }
+}
+"""
+    document = SysMLReader.read_from_string(
+        text, file_path="d.sysml", relative_path="d.sysml"
+    )
+    uids = [node_.reserved_uid for node_ in _nodes_of_type(document, "PART")]
+    assert uids == [
+        "D::Scenario::stations",
+        "D::Scenario::stations_2",
+        "D::Scenario::configuration",
+        "D::Other::stations",
+    ]
+
+
+def test_08_duplicate_names_are_suffixed_not_fatal():
+    text = """\
+package 'D' {
+    part def Pump;
+    part def Pump;
+}
+"""
+    document = SysMLReader.read_from_string(
+        text, file_path="d.sysml", relative_path="d.sysml"
+    )
+    uids = [
+        node_.reserved_uid for node_ in _nodes_of_type(document, "PART_DEF")
+    ]
+    assert uids == ["D::Pump", "D::Pump_2"]
+
+
+def test_09_satisfy_attaches_to_deepest_node_on_dot_path():
+    text = """\
+package 'D' {
+    part baseSteady {
+        part configuration {
+            part cartridge;
+        }
+    }
+    satisfy 'SYS-1' by baseSteady.configuration.cartridge;
+    satisfy 'SYS-2' by baseSteady.configuration.missing;
+}
+"""
+    document = SysMLReader.read_from_string(
+        text, file_path="d.sysml", relative_path="d.sysml"
+    )
+    cartridge_ = _nodes_of_type(document, "PART")[2]
+    assert cartridge_.reserved_uid == "D::baseSteady::configuration::cartridge"
+    satisfied_ = [
+        (relation_.role, relation_.ref_uid)
+        for relation_ in cartridge_.relations
+    ]
+    assert satisfied_ == [("Satisfies", "SYS-1")]
+    assert (
+        cartridge_.get_field_by_name("SATISFIED_BY_PATH").get_text_value()
+        == "SYS-1: baseSteady.configuration.cartridge"
+    )
+    # SYS-2 names baseSteady.configuration.missing. The deepest existing node
+    # is configuration, so the relation attaches there, and no placeholder is
+    # created.
+    configuration_ = _nodes_of_type(document, "PART")[1]
+    assert [
+        (relation_.role, relation_.ref_uid)
+        for relation_ in configuration_.relations
+    ] == [("Satisfies", "SYS-2")]
+    assert (
+        configuration_.get_field_by_name("SATISFIED_BY_PATH").get_text_value()
+        == "SYS-2: baseSteady.configuration.missing"
+    )
+    assert _nodes_of_type(document, "SATISFY") == []

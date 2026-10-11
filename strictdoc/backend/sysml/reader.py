@@ -110,6 +110,11 @@ DESIGN_TAGS: Dict[Tuple[str, bool], str] = {
 }
 
 
+# Part of the pickle cache key. Bump it when the reader output changes, so
+# that cached documents built by an older reader are not reused.
+SYSML_CACHE_KIND = "sysml-reader-2"
+
+
 class SysMLReader:
     """Reads SysML files into SDocDocument objects, with a pickle cache."""
 
@@ -120,7 +125,7 @@ class SysMLReader:
         relative_path: Optional[str] = None,
     ) -> SDocDocument:
         cached_content = PickleCache.read_from_cache(
-            file_path, project_config, "sysml"
+            file_path, project_config, SYSML_CACHE_KIND
         )
         if cached_content is not None:
             return assert_cast(cached_content, SDocDocument)
@@ -137,7 +142,9 @@ class SysMLReader:
             ),
         )
         document.build_search_index()
-        PickleCache.save_to_cache(document, file_path, project_config, "sysml")
+        PickleCache.save_to_cache(
+            document, file_path, project_config, SYSML_CACHE_KIND
+        )
         return document
 
     @staticmethod
@@ -246,6 +253,10 @@ def _is_representable_attribute(attribute: SysMLAttribute) -> bool:
     if attribute.name is None or attribute.short_name is not None:
         return False
     if len(attribute.modifiers) > 0 or len(attribute.annotations) > 0:
+        return False
+    if attribute.default_text is not None or attribute.is_abstract:
+        return False
+    if len(attribute.redefines) > 0:
         return False
     if attribute.multiplicity is not None:
         return False
@@ -654,6 +665,32 @@ def _resolve_dependencies(state: _RequirementsBuildState) -> None:
                 )
 
 
+SATISFY_TAG = "SATISFY"
+SATISFIED_BY_PATH_FIELD = "SATISFIED_BY_PATH"
+DESIGN_FIELD_TITLES = (
+    UID_FIELD,
+    TITLE_FIELD,
+    "ELEMENT_KIND",
+    STATEMENT_FIELD,
+    "SOURCE",
+    SATISFIED_BY_PATH_FIELD,
+)
+
+
+@dataclass
+class _PendingRelation:
+    """A satisfy or verify statement, resolved after all nodes exist."""
+
+    role: str
+    requirement_uid: str
+    by_text: Optional[str]
+    by_path: List[str]
+    enclosing_node: Optional[SDocNode]
+    container: Union[SDocDocument, SDocNode]
+    span: SysMLSpan
+    source_text: str
+
+
 @dataclass
 class _DesignBuildState:
     document: SDocDocument
@@ -661,11 +698,12 @@ class _DesignBuildState:
     including_reference: DocumentReference
     relative_path: str
     file_path: Optional[str]
-    nodes_by_qualified_name: Dict[str, SDocNode] = field(default_factory=dict)
-    used_mid_keys: Set[str] = field(default_factory=set)
-    pending_relations: List[
-        Tuple[str, str, Optional[str], Optional[SDocNode], SysMLSpan]
-    ] = field(default_factory=list)
+    # (qualified name segments, node) for every design node, in file order.
+    nodes_by_path: List[Tuple[List[str], SDocNode]] = field(
+        default_factory=list
+    )
+    used_uids: Set[str] = field(default_factory=set)
+    pending_relations: List[_PendingRelation] = field(default_factory=list)
 
 
 def _build_design_document(
@@ -727,7 +765,7 @@ def _create_design_grammar(document: SDocDocument) -> DocumentGrammar:
         parent=None, enable_mid=False
     )
     elements: List[GrammarElement] = [section_element, text_element]
-    for tag_ in sorted(set(DESIGN_TAGS.values())):
+    for tag_ in sorted(set(DESIGN_TAGS.values())) + [SATISFY_TAG]:
         fields: List[GrammarElementFieldType] = [
             GrammarElementFieldString(
                 parent=None,
@@ -735,18 +773,12 @@ def _create_design_grammar(document: SDocDocument) -> DocumentGrammar:
                 human_title=None,
                 required="False",
             )
-            for field_title_ in (
-                UID_FIELD,
-                TITLE_FIELD,
-                "ELEMENT_KIND",
-                STATEMENT_FIELD,
-                "SOURCE",
-            )
+            for field_title_ in DESIGN_FIELD_TITLES
         ]
         element = GrammarElement(
             parent=None,
             tag=tag_,
-            property_is_composite="True",
+            property_is_composite="False" if tag_ == SATISFY_TAG else "True",
             property_prefix="",
             property_view_style="",
             fields=fields,
@@ -781,6 +813,38 @@ def _sanitize_uid(raw_uid: str) -> str:
     if re.match(r"\w", sanitized) is None:
         sanitized = "_" + sanitized
     return sanitized
+
+
+def _last_name_segment(reference_text: str) -> str:
+    return re.split(r"::|\.", reference_text)[-1]
+
+
+def _display_name(element: SysMLElement) -> Optional[str]:
+    """
+    The element name, or for an anonymous redefinition, the feature it
+    redefines (`part :>> stations` is named `stations`).
+    """
+    if element.name is not None:
+        return element.name
+    if len(element.redefines) > 0:
+        return _last_name_segment(element.redefines[0])
+    return None
+
+
+def _unique_uid(base_uid: str, state: _DesignBuildState) -> str:
+    """
+    Return base_uid, or the first free `base_uid_N` (N >= 2).
+
+    Nodes are visited in file order, so the suffix is deterministic. A
+    collision never stops the export.
+    """
+    candidate = base_uid
+    suffix = 1
+    while candidate in state.used_uids:
+        suffix += 1
+        candidate = f"{base_uid}_{suffix}"
+    state.used_uids.add(candidate)
+    return candidate
 
 
 def _add_design_members(
@@ -823,50 +887,58 @@ def _add_design_members(
                 enclosing_node=enclosing_node,
             )
         elif isinstance(member_, SysMLElement):
+            display_name = _display_name(member_)
+            if display_name is not None:
+                element_segments = qualified_prefix + [display_name]
+            else:
+                element_segments = qualified_prefix + [
+                    f"anonymous_{member_.kind}_{member_.span.line_start}"
+                ]
             element_tag = DESIGN_TAGS.get((member_.kind, member_.is_definition))
-            child_prefix = (
-                qualified_prefix + [member_.name]
-                if member_.name is not None
-                else qualified_prefix
-            )
             if element_tag is None:
                 _add_design_members(
                     container,
                     member_.members,
                     state,
-                    qualified_prefix=child_prefix,
+                    qualified_prefix=element_segments,
                     enclosing_node=enclosing_node,
                 )
                 continue
             node = _create_design_node(
-                container, member_, element_tag, child_prefix, state
+                container, member_, element_tag, element_segments, state
             )
             container.section_contents.append(node)
             _add_design_members(
                 node,
                 member_.members,
                 state,
-                qualified_prefix=child_prefix,
+                qualified_prefix=element_segments,
                 enclosing_node=node,
             )
         elif isinstance(member_, SysMLSatisfy):
             state.pending_relations.append(
-                (
-                    SATISFIES_ROLE,
-                    member_.requirement,
-                    member_.by,
-                    enclosing_node,
-                    member_.span,
+                _PendingRelation(
+                    role=SATISFIES_ROLE,
+                    requirement_uid=member_.requirement,
+                    by_text=member_.by,
+                    by_path=member_.by_path,
+                    enclosing_node=enclosing_node,
+                    container=container,
+                    span=member_.span,
+                    source_text=member_.source_text,
                 )
             )
         elif isinstance(member_, SysMLVerify):
             state.pending_relations.append(
-                (
-                    VERIFIES_ROLE,
-                    member_.requirement,
-                    None,
-                    enclosing_node,
-                    member_.span,
+                _PendingRelation(
+                    role=VERIFIES_ROLE,
+                    requirement_uid=member_.requirement,
+                    by_text=None,
+                    by_path=[],
+                    enclosing_node=enclosing_node,
+                    container=container,
+                    span=member_.span,
+                    source_text=member_.source_text,
                 )
             )
 
@@ -896,18 +968,16 @@ def _create_design_node(
     container: Union[SDocDocument, SDocNode],
     element: SysMLElement,
     element_tag: str,
-    qualified_prefix: List[str],
+    element_segments: List[str],
     state: _DesignBuildState,
 ) -> SDocCompositeNode:
-    qualified_name = (
-        "::".join(qualified_prefix) if len(qualified_prefix) > 0 else None
-    )
-    raw_uid: Optional[str] = (
+    qualified_name = "::".join(element_segments)
+    base_uid = (
         element.short_name if element.short_name is not None else qualified_name
     )
-    fields: List[SDocNodeField] = []
-    if raw_uid is not None:
-        fields.append(_single_line_field(UID_FIELD, _sanitize_uid(raw_uid)))
+    uid = _unique_uid(_sanitize_uid(base_uid), state)
+
+    fields: List[SDocNodeField] = [_single_line_field(UID_FIELD, uid)]
     if element.name is not None:
         fields.append(_single_line_field(TITLE_FIELD, element.name))
     element_kind = (
@@ -932,67 +1002,99 @@ def _create_design_node(
     node.ng_including_document_reference = state.including_reference
     node.ng_line_start = element.span.line_start
     node.ng_col_start = element.span.col_start
-
-    key = (
-        qualified_name
-        if qualified_name is not None
-        else (f"{element_tag}-line-{element.span.line_start}")
-    )
-    unique_key = key
-    suffix = 1
-    while unique_key in state.used_mid_keys:
-        suffix += 1
-        unique_key = f"{key}#{suffix}"
-    state.used_mid_keys.add(unique_key)
-    node.reserved_mid = _stable_mid(state.relative_path, "design", unique_key)
-
-    if (
-        qualified_name is not None
-        and qualified_name not in state.nodes_by_qualified_name
-    ):
-        state.nodes_by_qualified_name[qualified_name] = node
+    node.reserved_mid = _stable_mid(state.relative_path, "design", uid)
+    state.nodes_by_path.append((element_segments, node))
     return node
 
 
-def _find_design_node(
-    name: str, state: _DesignBuildState
+def _resolve_design_path(
+    path: List[str], state: _DesignBuildState
 ) -> Optional[SDocNode]:
-    if name in state.nodes_by_qualified_name:
-        return state.nodes_by_qualified_name[name]
-    for qualified_name_, node_ in state.nodes_by_qualified_name.items():
-        if qualified_name_.endswith(f"::{name}"):
-            return node_
+    """
+    Return the deepest design node that matches a path, or None.
+
+    The longest prefix of the path is tried first. A node matches a prefix
+    when its qualified name segments end with that prefix. For example,
+    `baseSteady.configuration.cartridge` matches a node named `cartridge`
+    under `configuration`, and then a node named `baseSteady`.
+    """
+    for length_ in range(len(path), 0, -1):
+        prefix_ = path[:length_]
+        for segments_, node_ in state.nodes_by_path:
+            if len(segments_) >= length_ and segments_[-length_:] == prefix_:
+                return node_
     return None
 
 
+def _create_satisfy_placeholder(
+    relation: _PendingRelation, state: _DesignBuildState
+) -> SDocNode:
+    """
+    A node for a satisfy statement whose target is not in this file.
+
+    StrictDoc reads one file at a time, so a satisfy statement in one file can
+    name a usage declared in another. The statement is kept as its own node,
+    with the path visible in SATISFIED_BY_PATH.
+    """
+    assert relation.by_text is not None
+    base_uid = f"satisfy {relation.requirement_uid} by {relation.by_text}"
+    uid = _unique_uid(_sanitize_uid(base_uid), state)
+    fields: List[SDocNodeField] = [
+        _single_line_field(UID_FIELD, uid),
+        _single_line_field("ELEMENT_KIND", "satisfy"),
+        _content_field("SOURCE", relation.source_text),
+        _content_field(SATISFIED_BY_PATH_FIELD, relation.by_text),
+    ]
+    node = SDocNode(
+        parent=relation.container,
+        node_type=SATISFY_TAG,
+        fields=fields,
+        relations=[],
+        autogen=True,
+    )
+    _wire_field_parents(node)
+    node.ng_document_reference = state.document_reference
+    node.ng_including_document_reference = state.including_reference
+    node.ng_line_start = relation.span.line_start
+    node.ng_col_start = relation.span.col_start
+    node.reserved_mid = _stable_mid(state.relative_path, "satisfy", uid)
+    relation.container.section_contents.append(node)
+    return node
+
+
 def _resolve_design_relations(state: _DesignBuildState) -> None:
-    for (
-        role_,
-        requirement_uid_,
-        by_name_,
-        enclosing_,
-        span_,
-    ) in state.pending_relations:
-        target_node: Optional[SDocNode]
-        if by_name_ is not None:
-            target_node = _find_design_node(by_name_, state)
+    satisfied_lines: Dict[int, Tuple[SDocNode, List[str]]] = {}
+    for relation_ in state.pending_relations:
+        target_node: Optional[SDocNode] = None
+        if relation_.role == SATISFIES_ROLE and relation_.by_text is not None:
+            target_node = _resolve_design_path(relation_.by_path, state)
             if target_node is None:
-                raise StrictDocException(
-                    "Could not read SysML file: "
-                    f"{_location_message(state.file_path, span_)}: "
-                    f"'{by_name_}' is not an element of this file."
+                target_node = _create_satisfy_placeholder(relation_, state)
+            else:
+                _, lines_ = satisfied_lines.setdefault(
+                    id(target_node), (target_node, [])
+                )
+                lines_.append(
+                    f"{relation_.requirement_uid}: {relation_.by_text}"
                 )
         else:
-            target_node = enclosing_
+            target_node = relation_.enclosing_node
         if target_node is None:
             raise StrictDocException(
                 "Could not read SysML file: "
-                f"{_location_message(state.file_path, span_)}: "
-                f"'{role_.lower()}' statement must be inside an element "
-                "or name the element with 'by'."
+                f"{_location_message(state.file_path, relation_.span)}: "
+                f"'{relation_.role.lower()}' statement must be inside an "
+                "element or name the element with 'by'."
             )
         target_node.relations.append(
             ParentReqReference(
-                parent=target_node, ref_uid=requirement_uid_, role=role_
+                parent=target_node,
+                ref_uid=relation_.requirement_uid,
+                role=relation_.role,
             )
         )
+
+    for node_, lines_ in satisfied_lines.values():
+        field_ = _content_field(SATISFIED_BY_PATH_FIELD, "\n".join(lines_))
+        field_.parent = node_
+        node_.ordered_fields_lookup[SATISFIED_BY_PATH_FIELD] = [field_]

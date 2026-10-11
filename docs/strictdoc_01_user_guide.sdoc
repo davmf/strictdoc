@@ -5495,13 +5495,45 @@ MID: 3a8328ed10ff48cdab3ab6c8c922a8e3
 STATEMENT: >>>
 StrictDoc shows design packages as read-only documents. Their elements appear
 in the document tree with the fields ``UID``, ``TITLE``, ``ELEMENT_KIND``,
-``STATEMENT`` and ``SOURCE``.
+``STATEMENT``, ``SOURCE`` and ``SATISFIED_BY_PATH``.
 
-Design UIDs can contain characters that StrictDoc does not allow. StrictDoc
-replaces such characters with ``_``.
+The SysML subset in design packages includes:
 
-Members that the SysML subset does not cover are tolerated. They are kept as
-raw text and are not shown as nodes.
+- definitions and usages with the keywords ``part``, ``action``, ``calc``,
+  ``item``, ``attribute``, ``requirement``, ``verification``, ``analysis``,
+  ``enum`` and ``objective``;
+- the prefixes ``abstract``, ``variation``, ``variant``, ``ref``, ``derived``,
+  ``readonly``, ``end``, ``individual``, ``in``, ``out`` and ``inout``;
+- typing, specialisation and redefinition, with or without a keyword, for
+  example ``part :>> stations { ... }`` or ``:>> nominal = 10 [s];``;
+- ``default`` values and ``=`` values, with units and exponents;
+- successions, guarded successions such as
+  ``first d if not Bernoulli(p = x) then a;``, ``fork``, ``join``, ``decide``
+  and ``merge``;
+- ``perform action x : T { in part :>> a = b; }`` and ``allocate``;
+- dot feature chains, such as ``baseSteady.configuration.cartridge``, in
+  references and expressions;
+- expressions with ``not``, invocations, conditionals and comparisons.
+
+Members outside this list are kept as raw text and are not shown as nodes.
+
+UIDs follow these rules:
+
+- The short name is the UID when present.
+- Otherwise, the UID is the qualified name, for example
+  ``Halcyon::Scenario::stations``.
+- An anonymous redefinition, such as ``part :>> stations``, takes the name of
+  the redefined feature.
+- If two nodes get the same UID, the second gets a ``_2`` suffix, the third a
+  ``_3`` suffix, and so on. The export continues.
+
+A ``satisfy 'UID' by <path>;`` statement attaches the ``Satisfies`` relation
+to the deepest node on the dot path that exists in the same file. The
+``SATISFIED_BY_PATH`` field records the path. If no node on the path exists in
+the file, StrictDoc creates a ``SATISFY`` node that holds the statement. Each
+satisfy statement is then visible on the requirement page, but the relation
+does not reach the element in another file. StrictDoc reads one file at a
+time.
 <<<
 
 [[/SECTION]]

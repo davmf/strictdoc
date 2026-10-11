@@ -5348,6 +5348,181 @@ nodes nested deeper than six levels.
 [[/SECTION]]
 
 [[SECTION]]
+MID: db85bf86f9d64ec1a566e072f6535f40
+UID: SECTION-UG-SysML-support
+TITLE: SysML v2 support (experimental)
+
+[TEXT]
+MID: 01ef1813ff43407699810830609f9ae8
+STATEMENT: >>>
+StrictDoc reads and writes SysML v2 textual files (``.sysml``) as traceable
+documents. The format is experimental and is not enabled by default.
+
+Requirements packages are editable in StrictDoc. Design packages are
+read only. Their elements appear as nodes that satisfy or verify
+requirements.
+<<<
+
+[[SECTION]]
+MID: 791b877c241a4ac3908409301a61f5c7
+TITLE: Enabling the SysML format
+
+[TEXT]
+MID: 3528174514524db8bb3e6374bd2cc640
+STATEMENT: >>>
+Add ``SysMLFormat`` to the formats of the project in ``strictdoc_config.py``:
+
+.. code-block:: python
+
+    from strictdoc.backend.sysml.sysml_format import SysMLFormat
+    from strictdoc.core.project_config import ProjectConfig
+
+
+    def create_config() -> ProjectConfig:
+        return ProjectConfig(
+            formats=[*ProjectConfig.default_formats(), SysMLFormat()],
+        )
+
+The same mechanism registers any other custom format. Pass the list of
+formats to ``ProjectConfig``.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
+MID: 36581372ac0145928b4dd5380fe66737
+TITLE: File roles
+
+[TEXT]
+MID: f622c235be7a4f1eb8bf3ed9c600b31b
+STATEMENT: >>>
+StrictDoc decides the role of a file from its content, not from its path. A
+file is a requirements package when its top-level package contains only:
+
+- nested packages;
+- doc comments;
+- ``private import`` and ``public import`` statements;
+- requirement usages;
+- dependencies between requirements.
+
+Any other member makes the file a design package.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
+MID: f17eb563020a49e2a4ca543e504b2b9b
+TITLE: Mapping to StrictDoc
+
+[TEXT]
+MID: fd959e22fb49434ea4d24d818e0f928e
+STATEMENT: >>>
+.. list-table:: Mapping between StrictDoc and SysML v2
+    :header-rows: 1
+    :widths: 30 70
+
+    * - StrictDoc
+      - SysML v2
+    * - Document
+      - Top-level package. The title is the package name.
+    * - Document free text
+      - First ``doc`` comment of the top-level package.
+    * - Section
+      - Nested package. The title is the package name.
+    * - Section free text
+      - First ``doc`` comment of the nested package.
+    * - Node type ``REQUIREMENT``
+      - ``requirement`` usage.
+    * - ``UID``
+      - Short name, for example ``<'SYS-THR-001'>``.
+    * - ``TITLE``
+      - Name, for example ``'Shift throughput'``.
+    * - ``STATEMENT``
+      - First ``doc`` comment of the requirement.
+    * - Custom field
+      - ``attribute`` with the name in upper snake case. For example,
+        ``requiredSamplesPerShift`` becomes ``REQUIRED_SAMPLES_PER_SHIFT``.
+    * - ``CONSTRAINT``
+      - Text in ``require constraint Ellipsis``.
+    * - Parent relation
+      - ``dependency from <child> to <parent>;``
+    * - Design element
+      - ``part``, ``action``, ``calc def``, ``verification`` or ``analysis``
+        element. The ``UID`` is the short name, or the qualified name if
+        there is no short name.
+    * - Design relation to a requirement
+      - ``satisfy <UID> by <element>;`` gives the element a ``Satisfies``
+        relation. ``verify <UID>;`` in a verification case gives the case a
+        ``Verifies`` relation. In the requirement, these appear as
+        ``Satisfied by`` and ``Verified by`` relations.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
+MID: 13aa0760e3cf4921af66712919bb9aa2
+TITLE: Requirements packages and round trips
+
+[TEXT]
+MID: 3b6bbe70b8f948678eacc3bd5c272d6f
+STATEMENT: >>>
+StrictDoc writes requirements packages in a canonical layout: 4-space
+indentation, doc comments in `` * `` style, and one blank line between
+top-level blocks. Reading a canonical file and writing it back gives identical
+text.
+
+Non-canonical input is normalised when StrictDoc saves the document.
+
+StrictDoc drops these items from requirements packages when it saves them:
+
+- line notes (``//``);
+- block comments (``/* */``) that are not doc comments;
+- the original order of blocks.
+
+Attributes without a value and attribute types are kept. The ``#derivation``
+prefix on dependencies is kept per document. Without the prefix, StrictDoc
+writes plain ``dependency`` statements.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
+MID: 85348823254743e9812136ee191c6863
+TITLE: Design packages
+
+[TEXT]
+MID: 3a8328ed10ff48cdab3ab6c8c922a8e3
+STATEMENT: >>>
+StrictDoc shows design packages as read-only documents. Their elements appear
+in the document tree with the fields ``UID``, ``TITLE``, ``ELEMENT_KIND``,
+``STATEMENT`` and ``SOURCE``.
+
+Design UIDs can contain characters that StrictDoc does not allow. StrictDoc
+replaces such characters with ``_``.
+
+Members that the SysML subset does not cover are tolerated. They are kept as
+raw text and are not shown as nodes.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
+MID: 65fdbcc5ea6445e4ba0b7037fa2b8b6b
+TITLE: Syntax errors
+
+[TEXT]
+MID: 396f20b101ce47bd9f5d5ee90a24bfaa
+STATEMENT: >>>
+A syntax error stops the export. The error message gives the file name and the
+line number. Unknown members inside a body do not cause an error, so
+StrictDoc still loads the file.
+<<<
+
+[[/SECTION]]
+
+[[/SECTION]]
+
+[[SECTION]]
 MID: 72fdb23051184714ab32e22859504a77
 UID: SECTION-UG-Search-and-filtering
 TITLE: Search and filtering

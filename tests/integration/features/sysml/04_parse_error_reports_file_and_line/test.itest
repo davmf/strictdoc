@@ -1,0 +1,8 @@
+#
+# A syntax error at the top level is reported with the file name and line.
+# broken.sysml has the invalid text on line 6.
+#
+
+RUN: %expect_exit 1 %strictdoc export %S --formats=html --output-dir %T --config %S/strictdoc_config.py 2>&1 | filecheck %s --dump-input=fail
+
+CHECK: error: Could not parse SysML file: {{.*}}broken.sysml, line 6, column 1

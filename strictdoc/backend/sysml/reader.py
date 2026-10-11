@@ -730,9 +730,10 @@ def _build_design_document(
         section_contents=[],
         autogen=True,
     )
-    # Design elements carry source text, which is not valid RST. Plain text
-    # markup shows it verbatim.
-    document.config.markup = SDocMarkup.TEXT
+    # Doc comments of design elements can reference images, so the document
+    # uses RST. The SOURCE fields are wrapped into code blocks to keep the
+    # source text verbatim.
+    document.config.markup = SDocMarkup.RST
     document.grammar = _create_design_grammar(document)
     document.ng_including_document_reference = DocumentReference()
     document_reference = DocumentReference()
@@ -755,6 +756,21 @@ def _build_design_document(
     )
     _resolve_design_relations(state)
     return document
+
+
+def _as_rst_code_block(source_text: str) -> str:
+    # The first line of the source text starts at the element, while the other
+    # lines keep the indentation of the file.
+    lines = source_text.splitlines()
+    continuation_indents = [
+        len(line_) - len(line_.lstrip()) for line_ in lines[1:] if line_.strip()
+    ]
+    element_indent = min(continuation_indents, default=0)
+    dedented_lines = lines[:1] + [line_[element_indent:] for line_ in lines[1:]]
+    indented_lines = [
+        f"    {line_}" if len(line_) > 0 else line_ for line_ in dedented_lines
+    ]
+    return ".. code-block:: text\n\n" + "\n".join(indented_lines)
 
 
 def _create_design_grammar(document: SDocDocument) -> DocumentGrammar:
@@ -986,7 +1002,9 @@ def _create_design_node(
     fields.append(_single_line_field("ELEMENT_KIND", element_kind))
     if element.doc is not None and len(element.doc) > 0:
         fields.append(_content_field(STATEMENT_FIELD, element.doc))
-    fields.append(_content_field("SOURCE", element.source_text))
+    fields.append(
+        _content_field("SOURCE", _as_rst_code_block(element.source_text))
+    )
 
     node = SDocCompositeNode(
         parent=container,
@@ -1042,7 +1060,7 @@ def _create_satisfy_placeholder(
     fields: List[SDocNodeField] = [
         _single_line_field(UID_FIELD, uid),
         _single_line_field("ELEMENT_KIND", "satisfy"),
-        _content_field("SOURCE", relation.source_text),
+        _content_field("SOURCE", _as_rst_code_block(relation.source_text)),
         _content_field(SATISFIED_BY_PATH_FIELD, relation.by_text),
     ]
     node = SDocNode(

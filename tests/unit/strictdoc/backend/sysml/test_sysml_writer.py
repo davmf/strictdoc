@@ -152,3 +152,32 @@ def test_09_new_empty_document_from_default_grammar_is_a_requirements_package(
     assert path_to_file.read_text(encoding="utf8") == (
         "package 'New document' {\n}\n"
     )
+
+
+IMAGE_TEXT = """\
+package 'Images' {
+    requirement <'IMG-001'> 'Requirement with image' {
+        doc /*
+         * The display shall look like this:
+         *
+         * .. image:: ./_assets/0123456789abcdef0123456789abcdef/pasted_a1.png
+         *    :alt: Display mockup
+         *    :class: image
+         */
+    }
+}
+"""
+
+
+def test_20_image_directive_in_doc_comment_round_trips():
+    assert _roundtrip(IMAGE_TEXT) == IMAGE_TEXT
+
+
+def test_21_image_directive_is_kept_in_the_statement_field():
+    document = SysMLReader.read_from_string(
+        IMAGE_TEXT, file_path="t.sysml", relative_path="t.sysml"
+    )
+    requirement = document.section_contents[0]
+    statement = requirement.get_field_by_name("STATEMENT").get_text_value()
+    assert ".. image:: ./_assets/0123456789abcdef0123456789abcdef/" in statement
+    assert document.config.get_markup() == "RST"

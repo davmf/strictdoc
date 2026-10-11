@@ -66,6 +66,9 @@ through ``satisfy`` and ``verify`` statements. The format is enabled with
 2\) Documents are saved through the format that reads them. Custom formats
 that support editing are saved by their own writer. ``strictdoc format`` also
 formats ``.markdown`` documents.
+
+3\) SysML doc comments can contain images. Use the RST ``image`` directive,
+or drop or paste an image into a requirement in the Web UI.
 <<<
 
 [[/SECTION]]

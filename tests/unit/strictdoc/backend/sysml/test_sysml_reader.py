@@ -263,3 +263,27 @@ package 'D' {
         == "SYS-2: baseSteady.configuration.missing"
     )
     assert _nodes_of_type(document, "SATISFY") == []
+
+
+def test_10_design_package_keeps_image_directive_and_wraps_source():
+    text = """\
+package 'Design' {
+    part def Pump {
+        doc /*
+         * Pump layout:
+         *
+         * .. image:: ./_assets/pump.png
+         */
+        part pump : Pump;
+    }
+}
+"""
+    document = SysMLReader.read_from_string(
+        text, file_path="design.sysml", relative_path="design.sysml"
+    )
+    assert document.config.get_markup() == "RST"
+    pump_ = _nodes_of_type(document, "PART_DEF")[0]
+    statement = pump_.get_field_by_name("STATEMENT").get_text_value()
+    assert ".. image:: ./_assets/pump.png" in statement
+    source = pump_.get_field_by_name("SOURCE").get_text_value()
+    assert source.startswith(".. code-block:: text\n\n    part def Pump {")

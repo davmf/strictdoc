@@ -5539,6 +5539,41 @@ time.
 [[/SECTION]]
 
 [[SECTION]]
+MID: 94a6805674df48b5ba8abde748be3329
+TITLE: Images
+
+[TEXT]
+MID: fcf5cda919a74a23b7d54b17b3f3e51a
+STATEMENT: >>>
+A doc comment can show an image with the RST ``image`` directive. This works
+for requirements and for design elements. The path is relative to the
+``.sysml`` file.
+
+.. code-block:: text
+
+    requirement <'REQ-1'> 'Display layout' {
+        doc /*
+         * The display shall look like this:
+         *
+         * .. image:: ./_assets/REQ-1/layout.png
+         */
+    }
+
+The directive is plain text inside the doc comment, so the file stays valid
+SysML. Other SysML tools show the directive text and do not render the image.
+
+In the Web UI, you can drag and drop an image into the statement of a
+requirement, or paste one from the clipboard. StrictDoc saves the file to
+``_assets/<UID>/`` next to the ``.sysml`` file and adds the directive to the
+doc comment. Save a new requirement before you add an image to it.
+
+Design packages are read only, so add images to them by hand. In design
+packages, the ``SOURCE`` field is shown as a code block.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
 MID: 65fdbcc5ea6445e4ba0b7037fa2b8b6b
 TITLE: Syntax errors
 

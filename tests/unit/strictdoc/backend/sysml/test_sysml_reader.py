@@ -286,4 +286,61 @@ package 'Design' {
     statement = pump_.get_field_by_name("STATEMENT").get_text_value()
     assert ".. image:: ./_assets/pump.png" in statement
     source = pump_.get_field_by_name("SOURCE").get_text_value()
-    assert source.startswith(".. code-block:: text\n\n    part def Pump {")
+    assert "<details>" in source
+    assert "\n.. code-block:: text\n\n    part def Pump {" in source
+
+
+def test_11_design_node_lists_members_in_a_table():
+    text = """\
+package 'Design' {
+    action def SampleProcedure;
+    part sample {
+        perform action sampleProcedure : SampleProcedure {
+            in part :>> cart = cartridge;
+            attribute volume : Real = 5 [mL];
+        }
+    }
+}
+"""
+    document = SysMLReader.read_from_string(
+        text, file_path="design.sysml", relative_path="design.sysml"
+    )
+    procedure_ = _nodes_of_type(document, "ACTION")[0]
+    members = procedure_.get_field_by_name("MEMBERS").get_text_value()
+    assert members.startswith(".. list-table::")
+    assert "Redefines" in members
+    assert "``cartridge``" in members
+    assert "``attribute``" in members
+    assert "``Real``" in members
+    assert ":>>" not in members
+    sample_ = _nodes_of_type(document, "PART")[0]
+    assert "MEMBERS" in sample_.ordered_fields_lookup
+    leaf_ = _nodes_of_type(document, "ACTION_DEF")[0]
+    assert "MEMBERS" not in leaf_.ordered_fields_lookup
+
+
+def test_12_design_node_lists_properties_in_a_table():
+    text = """\
+package 'Design' {
+    part def Pump;
+    part pump : Pump [2];
+}
+"""
+    document = SysMLReader.read_from_string(
+        text, file_path="design.sysml", relative_path="design.sysml"
+    )
+    pump_ = _nodes_of_type(document, "PART")[0]
+    details = pump_.get_field_by_name("DETAILS").get_text_value()
+    assert details.startswith(".. list-table::")
+    assert details.splitlines()[3:] == [
+        "    * - Kind",
+        "      - Name",
+        "      - Type",
+        "      - Multiplicity",
+        "    * - ``part``",
+        "      - ``pump``",
+        "      - ``Pump``",
+        "      - ``[2]``",
+    ]
+    assert "``Pump``" in details
+    assert "Modifiers" not in details

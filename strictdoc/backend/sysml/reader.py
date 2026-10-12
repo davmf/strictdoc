@@ -68,6 +68,7 @@ from strictdoc.backend.sysml.model import (
     SysMLRequireConstraint,
     SysMLSatisfy,
     SysMLSpan,
+    SysMLSpecialization,
     SysMLVerify,
 )
 from strictdoc.backend.sysml.parser import SysMLParser
@@ -112,7 +113,7 @@ DESIGN_TAGS: Dict[Tuple[str, bool], str] = {
 
 # Part of the pickle cache key. Bump it when the reader output changes, so
 # that cached documents built by an older reader are not reused.
-SYSML_CACHE_KIND = "sysml-reader-2"
+SYSML_CACHE_KIND = "sysml-reader-6"
 
 
 class SysMLReader:
@@ -666,12 +667,16 @@ def _resolve_dependencies(state: _RequirementsBuildState) -> None:
 
 
 SATISFY_TAG = "SATISFY"
+DETAILS_FIELD = "DETAILS"
+MEMBERS_FIELD = "MEMBERS"
 SATISFIED_BY_PATH_FIELD = "SATISFIED_BY_PATH"
 DESIGN_FIELD_TITLES = (
     UID_FIELD,
     TITLE_FIELD,
     "ELEMENT_KIND",
     STATEMENT_FIELD,
+    DETAILS_FIELD,
+    MEMBERS_FIELD,
     "SOURCE",
     SATISFIED_BY_PATH_FIELD,
 )
@@ -759,8 +764,12 @@ def _build_design_document(
 
 
 def _as_rst_code_block(source_text: str) -> str:
-    # The first line of the source text starts at the element, while the other
-    # lines keep the indentation of the file.
+    """
+    Wrap source text into an RST code block inside a collapsed section.
+
+    The first line of the source text starts at the element, while the other
+    lines keep the indentation of the file.
+    """
     lines = source_text.splitlines()
     continuation_indents = [
         len(line_) - len(line_.lstrip()) for line_ in lines[1:] if line_.strip()
@@ -770,7 +779,127 @@ def _as_rst_code_block(source_text: str) -> str:
     indented_lines = [
         f"    {line_}" if len(line_) > 0 else line_ for line_ in dedented_lines
     ]
-    return ".. code-block:: text\n\n" + "\n".join(indented_lines)
+    return (
+        ".. raw:: html\n\n"
+        "    <details><summary>Show source</summary>\n\n"
+        ".. code-block:: text\n\n"
+        + "\n".join(indented_lines)
+        + "\n\n.. raw:: html\n\n    </details>"
+    )
+
+
+def _rst_table_cell(text: Optional[str]) -> str:
+    if text is None or len(text) == 0:
+        return "\\-"
+    return "``" + text.replace("`", "'") + "``"
+
+
+SPECIALIZATION_LABELS = {
+    ":": "Type",
+    ":>": "Subsets",
+    "subsets": "Subsets",
+    ":>>": "Redefines",
+    "redefines": "Redefines",
+}
+
+
+def _specialization_properties(
+    specializations: List[SysMLSpecialization],
+) -> List[Tuple[str, Optional[str]]]:
+    """
+    Group specializations by meaning, for example `:>> a` becomes Redefines.
+
+    The operator is only shown as the name of the column, never in the cell.
+    """
+    grouped: Dict[str, List[str]] = {}
+    for specialization_ in specializations:
+        label = SPECIALIZATION_LABELS.get(
+            specialization_.operator, specialization_.operator
+        )
+        grouped.setdefault(label, []).append(specialization_.targets_text)
+    return [(label_, ", ".join(texts_)) for label_, texts_ in grouped.items()]
+
+
+def _as_rst_details_table(element: SysMLElement) -> str:
+    """
+    Return the properties of an element as an RST list-table.
+
+    The property names are in the header row and the values in a single row.
+    """
+    kind = f"{element.kind} def" if element.is_definition else element.kind
+    properties: List[Tuple[str, Optional[str]]] = [
+        ("Kind", kind),
+        ("Modifiers", " ".join(element.modifiers)),
+        ("Name", element.name),
+        ("Short name", element.short_name),
+        *_specialization_properties(element.specializations),
+        ("Multiplicity", element.multiplicity),
+        ("Value", element.value_text),
+        ("Annotations", " ".join(element.annotations)),
+    ]
+    present = [
+        (property_, value_)
+        for property_, value_ in properties
+        if value_ is not None and len(value_) > 0
+    ]
+    lines = [".. list-table::", "    :header-rows: 1", ""]
+    for index_, (property_, _) in enumerate(present):
+        lines.append(("    * - " if index_ == 0 else "      - ") + property_)
+    for index_, (_, value_) in enumerate(present):
+        lines.append(
+            ("    * - " if index_ == 0 else "      - ")
+            + _rst_table_cell(value_)
+        )
+    return "\n".join(lines)
+
+
+def _as_rst_members_table(members: List[SysMLMember]) -> Optional[str]:
+    """
+    Return the direct members of an element as an RST list-table, or None.
+
+    Each row shows the modifiers, keyword, name, type, subsets, redefines and
+    value of a usage, so that the structure is readable without the source.
+    """
+    rows: List[Dict[str, str]] = []
+    for member_ in members:
+        if isinstance(member_, SysMLElement):
+            kind = (
+                f"{member_.kind} def" if member_.is_definition else member_.kind
+            )
+            name = member_.name or member_.short_name
+        elif isinstance(member_, SysMLAttribute):
+            kind = "attribute"
+            name = member_.name or member_.short_name
+        else:
+            continue
+        row = {
+            "Modifiers": " ".join(member_.modifiers),
+            "Kind": kind,
+            "Name": name or "",
+        }
+        for label_, text_ in _specialization_properties(
+            member_.specializations
+        ):
+            row[label_] = text_ or ""
+        row["Value"] = member_.value_text or ""
+        rows.append(row)
+    if len(rows) == 0:
+        return None
+    # Columns without any content in this element are left out.
+    column_order = ["Modifiers", "Kind", "Name", "Type", "Subsets", "Redefines"]
+    columns = [
+        column_
+        for column_ in column_order + ["Value"]
+        if any(len(row_.get(column_, "")) > 0 for row_ in rows)
+    ]
+    lines = [".. list-table::", "    :header-rows: 1", ""]
+    for index_, column_ in enumerate(columns):
+        lines.append(("    * - " if index_ == 0 else "      - ") + column_)
+    for row_ in rows:
+        for index_, column_ in enumerate(columns):
+            bullet = "    * - " if index_ == 0 else "      - "
+            lines.append(bullet + _rst_table_cell(row_.get(column_)))
+    return "\n".join(lines)
 
 
 def _create_design_grammar(document: SDocDocument) -> DocumentGrammar:
@@ -1002,6 +1131,10 @@ def _create_design_node(
     fields.append(_single_line_field("ELEMENT_KIND", element_kind))
     if element.doc is not None and len(element.doc) > 0:
         fields.append(_content_field(STATEMENT_FIELD, element.doc))
+    fields.append(_content_field(DETAILS_FIELD, _as_rst_details_table(element)))
+    members_table = _as_rst_members_table(element.members)
+    if members_table is not None:
+        fields.append(_content_field(MEMBERS_FIELD, members_table))
     fields.append(
         _content_field("SOURCE", _as_rst_code_block(element.source_text))
     )

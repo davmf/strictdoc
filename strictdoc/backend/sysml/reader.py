@@ -113,7 +113,7 @@ DESIGN_TAGS: Dict[Tuple[str, bool], str] = {
 
 # Part of the pickle cache key. Bump it when the reader output changes, so
 # that cached documents built by an older reader are not reused.
-SYSML_CACHE_KIND = "sysml-reader-6"
+SYSML_CACHE_KIND = "sysml-reader-7"
 
 
 class SysMLReader:
@@ -820,6 +820,21 @@ def _specialization_properties(
     return [(label_, ", ".join(texts_)) for label_, texts_ in grouped.items()]
 
 
+def _split_units(value_text: Optional[str]) -> Tuple[str, str]:
+    """
+    Split `0.05 [mm]` into the value `0.05` and the units `mm`.
+
+    A bracket directly after a name, as in `a[0]`, is an index and stays in
+    the value.
+    """
+    if value_text is None:
+        return "", ""
+    match = re.fullmatch(r"(.*\S)\s+\[([^\]]*)\]", value_text.strip())
+    if match is None:
+        return value_text, ""
+    return match.group(1), match.group(2).strip()
+
+
 def _as_rst_details_table(element: SysMLElement) -> str:
     """
     Return the properties of an element as an RST list-table.
@@ -834,7 +849,8 @@ def _as_rst_details_table(element: SysMLElement) -> str:
         ("Short name", element.short_name),
         *_specialization_properties(element.specializations),
         ("Multiplicity", element.multiplicity),
-        ("Value", element.value_text),
+        ("Value", _split_units(element.value_text)[0]),
+        ("Units", _split_units(element.value_text)[1]),
         ("Annotations", " ".join(element.annotations)),
     ]
     present = [
@@ -881,7 +897,7 @@ def _as_rst_members_table(members: List[SysMLMember]) -> Optional[str]:
             member_.specializations
         ):
             row[label_] = text_ or ""
-        row["Value"] = member_.value_text or ""
+        row["Value"], row["Units"] = _split_units(member_.value_text)
         rows.append(row)
     if len(rows) == 0:
         return None
@@ -889,7 +905,7 @@ def _as_rst_members_table(members: List[SysMLMember]) -> Optional[str]:
     column_order = ["Modifiers", "Kind", "Name", "Type", "Subsets", "Redefines"]
     columns = [
         column_
-        for column_ in column_order + ["Value"]
+        for column_ in column_order + ["Value", "Units"]
         if any(len(row_.get(column_, "")) > 0 for row_ in rows)
     ]
     lines = [".. list-table::", "    :header-rows: 1", ""]

@@ -344,3 +344,46 @@ package 'Design' {
     ]
     assert "``Pump``" in details
     assert "Modifiers" not in details
+
+
+def test_13_design_node_shows_units_in_a_separate_column():
+    text = """\
+package 'Design' {
+    part rig {
+        attribute pitch = 0.05 [mm];
+        attribute rate = 120 [Hz];
+        attribute count = 3;
+        attribute item = list[0];
+    }
+}
+"""
+    document = SysMLReader.read_from_string(
+        text, file_path="design.sysml", relative_path="design.sysml"
+    )
+    members = (
+        _nodes_of_type(document, "PART")[0]
+        .get_field_by_name("MEMBERS")
+        .get_text_value()
+    )
+    assert members.splitlines()[3:] == [
+        "    * - Kind",
+        "      - Name",
+        "      - Value",
+        "      - Units",
+        "    * - ``attribute``",
+        "      - ``pitch``",
+        "      - ``0.05``",
+        "      - ``mm``",
+        "    * - ``attribute``",
+        "      - ``rate``",
+        "      - ``120``",
+        "      - ``Hz``",
+        "    * - ``attribute``",
+        "      - ``count``",
+        "      - ``3``",
+        "      - \\-",
+        "    * - ``attribute``",
+        "      - ``item``",
+        "      - ``list[0]``",
+        "      - \\-",
+    ]

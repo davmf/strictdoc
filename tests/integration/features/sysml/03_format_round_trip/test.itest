@@ -1,0 +1,18 @@
+#
+# The format command rewrites a canonical SysML requirements package without
+# changes, and a second pass gives the same output (idempotency).
+#
+
+RUN: mkdir -p %T/pass1
+RUN: cp %S/canonical.sysml %T/pass1/canonical.sysml
+RUN: cp %S/stakeholder.sysml %T/pass1/stakeholder.sysml
+RUN: cp %S/strictdoc_config.py %T/pass1/strictdoc_config.py
+
+RUN: %strictdoc format %T/pass1/ --config %T/pass1/strictdoc_config.py
+
+RUN: diff %S/canonical.sysml %T/pass1/canonical.sysml
+RUN: diff %S/stakeholder.sysml %T/pass1/stakeholder.sysml
+
+RUN: cp -r %T/pass1 %T/pass2
+RUN: %strictdoc format %T/pass2/ --config %T/pass2/strictdoc_config.py
+RUN: diff %T/pass1/canonical.sysml %T/pass2/canonical.sysml

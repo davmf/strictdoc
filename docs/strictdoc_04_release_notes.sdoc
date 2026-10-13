@@ -50,6 +50,30 @@ releases:
 <<<
 
 [[SECTION]]
+MID: 845bf3b882e64480a94e0f4502eed29c
+TITLE: Unreleased
+
+[TEXT]
+MID: 75aa25e4821c4d228687fdee6d93b32c
+STATEMENT: >>>
+This release contains the following enhancements:
+
+1\) Added experimental support for SysML v2 files (``.sysml``). Requirements
+packages are editable. Design packages are read only and link to requirements
+through ``satisfy`` and ``verify`` statements. The format is enabled with
+``SysMLFormat`` in ``strictdoc_config.py``.
+
+2\) Documents are saved through the format that reads them. Custom formats
+that support editing are saved by their own writer. ``strictdoc format`` also
+formats ``.markdown`` documents.
+
+3\) SysML doc comments can contain images. Use the RST ``image`` directive,
+or drop or paste an image into a requirement in the Web UI.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
 MID: 8a13de7253c14afb8dfc95f88948b22f
 TITLE: 0.30.1 (2026-09-15)
 

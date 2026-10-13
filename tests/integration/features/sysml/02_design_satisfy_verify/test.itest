@@ -1,0 +1,24 @@
+#
+# A design package (read only) with satisfy and verify statements.
+#
+# The requirement page shows the design elements as child relations:
+# "Satisfied by" for the part and "Verified by" for the verification case.
+#
+
+RUN: %strictdoc export %S --formats=html --output-dir %T --config %S/strictdoc_config.py | filecheck %s --dump-input=fail
+CHECK: Export completed.
+
+RUN: %cat %T/html/%THIS_TEST_FOLDER/requirements.html | filecheck %s --dump-input=fail --check-prefix CHECK-REQUIREMENTS-HTML
+
+CHECK-REQUIREMENTS-HTML: SYS-THR-001
+CHECK-REQUIREMENTS-HTML: Design::Pump::pump
+CHECK-REQUIREMENTS-HTML: Satisfied by
+CHECK-REQUIREMENTS-HTML: Design::ThroughputCheck
+CHECK-REQUIREMENTS-HTML: Verified by
+
+RUN: %cat %T/html/%THIS_TEST_FOLDER/design.html | filecheck %s --dump-input=fail --check-prefix CHECK-DESIGN-HTML
+
+CHECK-DESIGN-HTML: ThroughputCheck
+CHECK-DESIGN-HTML: Design::Pump
+CHECK-DESIGN-HTML: part def
+CHECK-DESIGN-HTML: The pump moves sample into the chip.

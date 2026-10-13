@@ -697,6 +697,31 @@ class ProjectConfig:
                     extensions.append(extension)
         return extensions
 
+    def get_editable_format_for_path(
+        self, document_path: str
+    ) -> Optional["Format"]:
+        """
+        Return the editable Format that writes a document with the given
+        path, or None if no format in self.formats can edit it.
+
+        The matching is case-insensitive and tries the longest extension
+        first, like the read dispatch in DocumentFinder. Only formats that
+        supports_edit() take part.
+        """
+        candidates: List[Tuple[str, Format]] = []
+        for format_ in self.formats:
+            if not format_.supports_edit():
+                continue
+            for extension_ in format_.supported_extensions():
+                candidates.append((extension_.lower(), format_))
+        candidates.sort(key=lambda candidate_: len(candidate_[0]), reverse=True)
+
+        document_path_lower = document_path.lower()
+        for extension_, format_ in candidates:
+            if document_path_lower.endswith(extension_):
+                return format_
+        return None
+
     # Some server command settings can override the project config settings.
     def integrate_server_config(
         self, server_config: ServerCommandConfig

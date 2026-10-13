@@ -307,10 +307,11 @@ package 'Design' {
     )
     procedure_ = _nodes_of_type(document, "ACTION")[0]
     members = procedure_.get_field_by_name("MEMBERS").get_text_value()
-    assert members.startswith(".. list-table::")
+    assert members.startswith("**parts**\n\n.. list-table::")
+    assert "\n\n**attributes**\n\n.. list-table::" in members
     assert "Redefines" in members
     assert "``cartridge``" in members
-    assert "``attribute``" in members
+    assert "Kind" not in members
     assert "``Real``" in members
     assert ":>>" not in members
     sample_ = _nodes_of_type(document, "PART")[0]
@@ -331,14 +332,13 @@ package 'Design' {
     )
     pump_ = _nodes_of_type(document, "PART")[0]
     details = pump_.get_field_by_name("DETAILS").get_text_value()
-    assert details.startswith(".. list-table::")
-    assert details.splitlines()[3:] == [
-        "    * - Kind",
-        "      - Name",
+    assert details.splitlines()[:2] == ["**parts**", ""]
+    assert details.splitlines()[2] == ".. list-table::"
+    assert details.splitlines()[5:] == [
+        "    * - Name",
         "      - Type",
         "      - Multiplicity",
-        "    * - ``part``",
-        "      - ``pump``",
+        "    * - ``pump``",
         "      - ``Pump``",
         "      - ``[2]``",
     ]
@@ -365,25 +365,76 @@ package 'Design' {
         .get_field_by_name("MEMBERS")
         .get_text_value()
     )
-    assert members.splitlines()[3:] == [
-        "    * - Kind",
-        "      - Name",
+    assert members.splitlines()[:2] == ["**attributes**", ""]
+    assert members.splitlines()[5:] == [
+        "    * - Name",
         "      - Value",
         "      - Units",
-        "    * - ``attribute``",
-        "      - ``pitch``",
+        "    * - ``pitch``",
         "      - ``0.05``",
         "      - ``mm``",
-        "    * - ``attribute``",
-        "      - ``rate``",
+        "    * - ``rate``",
         "      - ``120``",
         "      - ``Hz``",
-        "    * - ``attribute``",
-        "      - ``count``",
+        "    * - ``count``",
         "      - ``3``",
         "      - \\-",
-        "    * - ``attribute``",
-        "      - ``item``",
+        "    * - ``item``",
         "      - ``list[0]``",
         "      - \\-",
+    ]
+
+
+def test_14_design_node_groups_members_by_kind():
+    text = """\
+package 'Design' {
+    part def Instrument {
+        part rack : SampleRack;
+        attribute count = 3;
+        part shuttle : Shuttle;
+        action def Run;
+    }
+}
+"""
+    document = SysMLReader.read_from_string(
+        text, file_path="design.sysml", relative_path="design.sysml"
+    )
+    instrument_ = _nodes_of_type(document, "PART_DEF")[0]
+    details = instrument_.get_field_by_name("DETAILS").get_text_value()
+    assert details.startswith("**part-defs**\n\n.. list-table::")
+    assert "Kind" not in details
+    members = instrument_.get_field_by_name("MEMBERS").get_text_value()
+    headings = [
+        line_ for line_ in members.splitlines() if line_.startswith("**")
+    ]
+    assert headings == ["**parts**", "**attributes**", "**action-defs**"]
+    parts_table = members.split("**attributes**")[0]
+    assert "``rack``" in parts_table
+    assert "``shuttle``" in parts_table
+    assert "``count``" not in parts_table
+
+
+def test_15_design_node_keeps_name_column_for_anonymous_members():
+    text = """\
+package 'Design' {
+    verification def PumpTest {
+        objective {
+            doc /* The pump delivers the flow. */
+        }
+    }
+}
+"""
+    document = SysMLReader.read_from_string(
+        text, file_path="design.sysml", relative_path="design.sysml"
+    )
+    test_ = _nodes_of_type(document, "VERIFICATION_DEF")[0]
+    members = test_.get_field_by_name("MEMBERS").get_text_value()
+    assert members.splitlines() == [
+        "**objectives**",
+        "",
+        ".. list-table::",
+        "    :header-rows: 1",
+        "",
+        "    * - Name",
+        "    * - \\-",
     ]

@@ -113,7 +113,7 @@ DESIGN_TAGS: Dict[Tuple[str, bool], str] = {
 
 # Part of the pickle cache key. Bump it when the reader output changes, so
 # that cached documents built by an older reader are not reused.
-SYSML_CACHE_KIND = "sysml-reader-7"
+SYSML_CACHE_KIND = "sysml-reader-8"
 
 
 class SysMLReader:
@@ -835,15 +835,44 @@ def _split_units(value_text: Optional[str]) -> Tuple[str, str]:
     return match.group(1), match.group(2).strip()
 
 
+KIND_PLURALS = {
+    "analysis": "analyses",
+    "metadata": "metadata",
+}
+
+
+def _kind_heading(kind: str) -> str:
+    """
+    Return the plural heading for a group of members of one kind.
+
+    The heading is in bold, for example `part def` becomes `**part-defs**`.
+    """
+    words = kind.split(" ")
+    words[-1] = KIND_PLURALS.get(words[-1], words[-1] + "s")
+    return "**" + "-".join(words) + "**"
+
+
+def _as_rst_list_table(columns: List[str], rows: List[Dict[str, str]]) -> str:
+    lines = [".. list-table::", "    :header-rows: 1", ""]
+    for index_, column_ in enumerate(columns):
+        lines.append(("    * - " if index_ == 0 else "      - ") + column_)
+    for row_ in rows:
+        for index_, column_ in enumerate(columns):
+            bullet = "    * - " if index_ == 0 else "      - "
+            lines.append(bullet + _rst_table_cell(row_.get(column_)))
+    return "\n".join(lines)
+
+
 def _as_rst_details_table(element: SysMLElement) -> str:
     """
     Return the properties of an element as an RST list-table.
 
-    The property names are in the header row and the values in a single row.
+    The kind of the element is a heading above the table. The property names
+    are in the header row and the values in a single row. An element without
+    any properties only has the heading.
     """
     kind = f"{element.kind} def" if element.is_definition else element.kind
     properties: List[Tuple[str, Optional[str]]] = [
-        ("Kind", kind),
         ("Modifiers", " ".join(element.modifiers)),
         ("Name", element.name),
         ("Short name", element.short_name),
@@ -853,30 +882,30 @@ def _as_rst_details_table(element: SysMLElement) -> str:
         ("Units", _split_units(element.value_text)[1]),
         ("Annotations", " ".join(element.annotations)),
     ]
-    present = [
-        (property_, value_)
+    present = {
+        property_: value_
         for property_, value_ in properties
         if value_ is not None and len(value_) > 0
-    ]
-    lines = [".. list-table::", "    :header-rows: 1", ""]
-    for index_, (property_, _) in enumerate(present):
-        lines.append(("    * - " if index_ == 0 else "      - ") + property_)
-    for index_, (_, value_) in enumerate(present):
-        lines.append(
-            ("    * - " if index_ == 0 else "      - ")
-            + _rst_table_cell(value_)
-        )
-    return "\n".join(lines)
+    }
+    if len(present) == 0:
+        return _kind_heading(kind)
+    return (
+        _kind_heading(kind)
+        + "\n\n"
+        + _as_rst_list_table(list(present.keys()), [present])
+    )
 
 
 def _as_rst_members_table(members: List[SysMLMember]) -> Optional[str]:
     """
-    Return the direct members of an element as an RST list-table, or None.
+    Return the direct members of an element as RST list-tables, or None.
 
-    Each row shows the modifiers, keyword, name, type, subsets, redefines and
-    value of a usage, so that the structure is readable without the source.
+    The members are grouped by kind, in the order the kinds first appear.
+    Each group has a heading and a table that shows the modifiers, name,
+    type, subsets, redefines and value of each usage, so that the structure
+    is readable without the source.
     """
-    rows: List[Dict[str, str]] = []
+    groups: Dict[str, List[Dict[str, str]]] = {}
     for member_ in members:
         if isinstance(member_, SysMLElement):
             kind = (
@@ -890,7 +919,6 @@ def _as_rst_members_table(members: List[SysMLMember]) -> Optional[str]:
             continue
         row = {
             "Modifiers": " ".join(member_.modifiers),
-            "Kind": kind,
             "Name": name or "",
         }
         for label_, text_ in _specialization_properties(
@@ -898,24 +926,32 @@ def _as_rst_members_table(members: List[SysMLMember]) -> Optional[str]:
         ):
             row[label_] = text_ or ""
         row["Value"], row["Units"] = _split_units(member_.value_text)
-        rows.append(row)
-    if len(rows) == 0:
+        groups.setdefault(kind, []).append(row)
+    if len(groups) == 0:
         return None
-    # Columns without any content in this element are left out.
-    column_order = ["Modifiers", "Kind", "Name", "Type", "Subsets", "Redefines"]
-    columns = [
-        column_
-        for column_ in column_order + ["Value", "Units"]
-        if any(len(row_.get(column_, "")) > 0 for row_ in rows)
+    column_order = [
+        "Modifiers",
+        "Name",
+        "Type",
+        "Subsets",
+        "Redefines",
+        "Value",
+        "Units",
     ]
-    lines = [".. list-table::", "    :header-rows: 1", ""]
-    for index_, column_ in enumerate(columns):
-        lines.append(("    * - " if index_ == 0 else "      - ") + column_)
-    for row_ in rows:
-        for index_, column_ in enumerate(columns):
-            bullet = "    * - " if index_ == 0 else "      - "
-            lines.append(bullet + _rst_table_cell(row_.get(column_)))
-    return "\n".join(lines)
+    tables = []
+    for kind_, rows_ in groups.items():
+        # Columns without any content in this group are left out, except
+        # Name, so that a group of anonymous members still has a table.
+        columns = [
+            column_
+            for column_ in column_order
+            if column_ == "Name"
+            or any(len(row_.get(column_, "")) > 0 for row_ in rows_)
+        ]
+        tables.append(
+            _kind_heading(kind_) + "\n\n" + _as_rst_list_table(columns, rows_)
+        )
+    return "\n\n".join(tables)
 
 
 def _create_design_grammar(document: SDocDocument) -> DocumentGrammar:

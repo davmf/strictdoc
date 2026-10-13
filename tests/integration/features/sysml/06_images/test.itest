@@ -1,0 +1,22 @@
+#
+# Export SysML documents with images referenced from doc comments.
+#
+# The requirements package (editable) and the design package (read only)
+# both reference _assets/diagram.svg. The HTML must contain an image object
+# and the asset must be copied next to the exported documents. The design
+# source must stay verbatim in a code block.
+#
+
+RUN: %strictdoc export %S --formats=html --output-dir %T --config %S/strictdoc_config.py | filecheck %s --dump-input=fail
+CHECK: Export completed.
+
+RUN: %cat %T/html/%THIS_TEST_FOLDER/requirements.html | filecheck %s --dump-input=fail --check-prefix CHECK-REQ
+CHECK-REQ: The display shall look like this:
+CHECK-REQ: <object data="./_assets/diagram.svg"
+
+RUN: %cat %T/html/%THIS_TEST_FOLDER/design.html | filecheck %s --dump-input=fail --check-prefix CHECK-DESIGN
+CHECK-DESIGN: Display layout:
+CHECK-DESIGN: <object data="./_assets/diagram.svg"
+CHECK-DESIGN: part def Display
+
+RUN: test -f %T/html/%THIS_TEST_FOLDER/_assets/diagram.svg

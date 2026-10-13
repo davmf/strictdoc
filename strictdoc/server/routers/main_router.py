@@ -38,7 +38,6 @@ from starlette.responses import (
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from strictdoc.backend.json.json_generator import JSONGenerator
-from strictdoc.backend.markdown.writer import SDMarkdownWriter
 from strictdoc.backend.reqif.p01_sdoc.reqif_to_sdoc_converter import (
     P01_ReqIFToSDocConverter,
 )
@@ -62,7 +61,6 @@ from strictdoc.backend.sdoc.models.model import (
 from strictdoc.backend.sdoc.models.node import (
     SDocNode,
 )
-from strictdoc.backend.sdoc.writer import SDWriter
 from strictdoc.backend.sdoc_source_code.models.source_file_info import (
     SourceFileTraceabilityInfo,
 )
@@ -71,6 +69,7 @@ from strictdoc.core.analyzers.document_uid_analyzer import DocumentUIDAnalyzer
 from strictdoc.core.document_meta import DocumentMeta
 from strictdoc.core.document_tree import DocumentTree
 from strictdoc.core.feature import Feature, FeatureContext
+from strictdoc.core.format import Format
 from strictdoc.core.image_formats import (
     SUPPORTED_IMAGE_FORMAT_NAMES,
     SUPPORTED_IMAGE_FORMATS,
@@ -160,6 +159,7 @@ from strictdoc.features.search.view_object import (
     SearchScreenViewObject,
 )
 from strictdoc.helpers.cast import assert_cast
+from strictdoc.helpers.exception import StrictDocException
 from strictdoc.helpers.file_modification_time import (
     get_file_modification_time,
     set_file_modification_time,
@@ -344,42 +344,36 @@ def create_main_router(
         export_output_html_root=project_config.export_output_html_root,
     )
 
-    sdoc_writer = SDWriter(project_config)
-
     def write_document_to_file(document: SDocDocument) -> None:
         """
-        FIXME: Factorize this into an OOP class.
+        Write a document with the editable Format that matches its path.
 
-        FIXME: The writer dispatch below is hardcoded to ".md"/".markdown"
-        vs. everything else, not derived from project_config.formats /
-        Format.supports_edit(). Document creation now accepts any editable
-        format's extension (see ProjectConfig.get_editable_document_extensions()),
-        so a third editable format would pass creation validation but get
-        silently mis-written here.
+        FIXME: Factorize this into an OOP class.
         """
 
         assert isinstance(document, SDocDocument)
+        assert document.meta is not None
+
+        document_format: Optional[Format] = (
+            project_config.get_editable_format_for_path(
+                document.meta.input_doc_full_path
+            )
+        )
+        if document_format is None:
+            raise StrictDocException(
+                "No editable format is registered for document: "
+                f"{document.meta.input_doc_full_path}."
+            )
 
         # Inhibit before writing so the watcher's debounce always fires into
         # an already-suppressed state — no race window between write and hash.
-        if document.meta is not None:
-            document_watcher = getattr(app.state, "document_watcher", None)
-            if document_watcher is not None:
-                document_watcher.inhibit_next_change(
-                    document.meta.input_doc_full_path
-                )
+        document_watcher = getattr(app.state, "document_watcher", None)
+        if document_watcher is not None:
+            document_watcher.inhibit_next_change(
+                document.meta.input_doc_full_path
+            )
 
-        if (
-            document.meta is not None
-            and document.meta.input_doc_full_path.lower().endswith(
-                (".md", ".markdown")
-            )
-        ):
-            SDMarkdownWriter.write_to_file(
-                document, line_width=project_config.document_line_width
-            )
-        else:
-            sdoc_writer.write_to_file(document)
+        document_format.write_document_to_file(document, project_config)
 
     def env() -> JinjaEnvironment:
         return html_templates.jinja_environment()

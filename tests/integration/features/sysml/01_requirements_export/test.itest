@@ -1,0 +1,29 @@
+#
+# Export a requirements package (editable SysML document) to HTML.
+#
+# The package has a section with free text, a requirement with a statement,
+# attributes, and a require constraint. The requirement depends on a
+# requirement in another document (stakeholder.sysml), which must appear as
+# a parent relation.
+#
+
+RUN: %strictdoc export %S --formats=html --output-dir %T --config %S/strictdoc_config.py | filecheck %s --dump-input=fail
+CHECK: Export completed.
+
+RUN: %cat %T/html/%THIS_TEST_FOLDER/system.html | filecheck %s --dump-input=fail --check-prefix CHECK-HTML
+
+CHECK-HTML: System requirements
+CHECK-HTML: Throughput
+CHECK-HTML: SYS-THR-001
+CHECK-HTML: Shift throughput
+CHECK-HTML: Free text shown at the top of the document.
+CHECK-HTML: Section text about throughput.
+CHECK-HTML: REQUIRED_SAMPLES_PER_SHIFT
+CHECK-HTML: STK-THR-001
+CHECK-HTML: The instrument shall complete at least 96 samples
+CHECK-HTML: measuredSamplesPerShift &gt;= requiredSamplesPerShift
+
+RUN: %cat %T/html/%THIS_TEST_FOLDER/stakeholder.html | filecheck %s --dump-input=fail --check-prefix CHECK-STAKEHOLDER-HTML-DAG
+
+CHECK-STAKEHOLDER-HTML-DAG: Stakeholder needs
+CHECK-STAKEHOLDER-HTML-DAG: The laboratory needs a high sample throughput.

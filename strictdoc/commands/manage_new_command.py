@@ -3,18 +3,17 @@ import os
 import sys
 from typing import Optional, Union
 
-from strictdoc.backend.markdown.writer import SDMarkdownWriter
 from strictdoc.backend.sdoc.document_reference import DocumentReference
 from strictdoc.backend.sdoc.errors.document_tree_error import DocumentTreeError
 from strictdoc.backend.sdoc.models.document import SDocDocument
 from strictdoc.backend.sdoc.models.grammar_element import GrammarElement
 from strictdoc.backend.sdoc.models.node import SDocNode, SDocNodeField
-from strictdoc.backend.sdoc.writer import SDWriter
 from strictdoc.cli.base_command import BaseCommand, CLIValidationError
 from strictdoc.commands.manage_new_config import ManageNewCommandConfig
 from strictdoc.core.analyzers.document_stats import DocumentTreeStats
 from strictdoc.core.analyzers.document_uid_analyzer import DocumentUIDAnalyzer
 from strictdoc.core.file_system.document_finder import DocumentFinder
+from strictdoc.core.format import Format
 from strictdoc.core.project_config import ProjectConfigLoader
 from strictdoc.core.traceability_index import TraceabilityIndex
 from strictdoc.core.traceability_index_builder import TraceabilityIndexBuilder
@@ -313,19 +312,17 @@ added to that document's root level.
 
         # Write the modified document back to disk.
         doc_filename: str = document.meta.document_filename
-        if doc_filename.endswith(".sdoc"):
-            document_content = SDWriter(project_config).write(document)
-            with open(
-                document.meta.input_doc_full_path, "w", encoding="utf8"
-            ) as output_file:
-                output_file.write(document_content)
-        elif doc_filename.endswith(".md"):
-            SDMarkdownWriter.write_to_file(document)
-        else:
+        document_format: Optional[Format] = (
+            project_config.get_editable_format_for_path(
+                document.meta.input_doc_full_path
+            )
+        )
+        if document_format is None:
             print(  # noqa: T201
                 f"error: Unsupported document format: {doc_filename}"
             )
             sys.exit(1)
+        document_format.write_document_to_file(document, project_config)
 
         # Report what was created.
         parent_desc: str

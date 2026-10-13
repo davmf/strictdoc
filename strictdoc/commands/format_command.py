@@ -1,11 +1,11 @@
 import argparse
 import sys
+from typing import Optional
 
-from strictdoc.backend.markdown.writer import SDMarkdownWriter
 from strictdoc.backend.sdoc.errors.document_tree_error import DocumentTreeError
-from strictdoc.backend.sdoc.writer import SDWriter
 from strictdoc.cli.base_command import BaseCommand, CLIValidationError
 from strictdoc.commands.format_config import FormatCommandConfig
+from strictdoc.core.format import Format
 from strictdoc.core.project_config import ProjectConfig, ProjectConfigLoader
 from strictdoc.core.traceability_index import TraceabilityIndex
 from strictdoc.core.traceability_index_builder import TraceabilityIndexBuilder
@@ -13,11 +13,12 @@ from strictdoc.helpers.parallelizer import Parallelizer
 
 
 class FormatCommand(BaseCommand):
-    HELP = "Format SDoc and Markdown documents to the configured line width."
+    HELP = "Format editable documents to the configured line width."
     DETAILED_HELP = """\
-This command reads all SDoc and Markdown documents in the project tree and
-writes them back formatted according to the project's `document_line_width`
-configuration option (set in strictdoc_config.py).
+This command reads all documents in the project tree that an editable format
+can write, such as SDoc and Markdown, and writes them back formatted
+according to the project's `document_line_width` configuration option (set
+in strictdoc_config.py).
 
 If `document_line_width` is not configured, the command still rewrites all
 documents to normalise their content (a no-op round-trip).
@@ -63,21 +64,17 @@ documents to normalise their content (a no-op round-trip).
             print(exc.to_print_message())  # noqa: T201
             sys.exit(1)
 
-        line_width = project_config.document_line_width
-        sdoc_writer = SDWriter(project_config)
-
         for document in traceability_index.document_tree.document_list:
             assert document.meta is not None
 
             if document.autogen:
                 continue
 
-            filename = document.meta.document_filename
-            if filename.endswith(".sdoc"):
-                document_content = sdoc_writer.write(document)
-                with open(
-                    document.meta.input_doc_full_path, "w", encoding="utf8"
-                ) as output_file:
-                    output_file.write(document_content)
-            elif filename.endswith(".md"):
-                SDMarkdownWriter.write_to_file(document, line_width=line_width)
+            document_format: Optional[Format] = (
+                project_config.get_editable_format_for_path(
+                    document.meta.input_doc_full_path
+                )
+            )
+            if document_format is None:
+                continue
+            document_format.write_document_to_file(document, project_config)

@@ -1,0 +1,14 @@
+#
+# Regression test for the Halcyon dPCR-24 model (9 SysML files, validated by
+# the OMG Pilot Implementation). The model is a copy of the model repository.
+#
+# The export must succeed. Every SYS requirement must show the design trace:
+# "Satisfied by" for the satisfy statements, and "Verified by" for the
+# verification cases.
+#
+
+RUN: %strictdoc export %S --formats=html --output-dir %T --config %S/strictdoc_config.py | filecheck %s --dump-input=fail
+CHECK: Export completed.
+
+RUN: python %S/check_trace.py %S/requirements/system_requirements.sysml %T/html/%THIS_TEST_FOLDER/requirements/system_requirements.html | filecheck %s --check-prefix CHECK-TRACE --dump-input=fail
+CHECK-TRACE: Checked 12 SYS requirements, failures: 0

@@ -91,6 +91,25 @@ class Format(ABC):
             f"{self.__class__.__name__} does not support reading."
         )
 
+    def write_document_to_file(
+        self,
+        document: "SDocDocument",
+        project_config: "ProjectConfig",  # noqa: ARG002
+    ) -> None:
+        """
+        Write an edited document back to its source file at
+        document.meta.input_doc_full_path.
+
+        Formats that return True from supports_edit() implement this method.
+        The web server, "strictdoc format" and "strictdoc manage new" use it
+        to save a document in the same format it was read from. See
+        ProjectConfig.get_editable_format_for_path().
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support writing "
+            f"document: {document.title}."
+        )
+
     @staticmethod
     @abstractmethod
     def supports_grammar() -> bool:

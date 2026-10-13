@@ -59,19 +59,14 @@ def screen_should_display_file(
     """
     assert isinstance(file, File), file
 
-    if (
-        file.has_extension(".junit.xml")
-        or file.has_extension(".gcov.json")
-        or file.has_extension(".robot.xml")
-        or file.has_extension(".reqif")
-    ):
-        return True
-
-    if file.has_extension(".gra.md"):
-        return False
-
-    if file.has_extension(".md") or file.has_extension(".markdown"):
-        return True
+    # Grammar files, e.g., ".sgra" and ".gra.md", are never displayed. Their
+    # extensions are checked first because ".gra.md" also ends with ".md".
+    for format_ in project_config.formats:
+        if not format_.supports_grammar():
+            continue
+        for extension_ in format_.grammar_extensions():
+            if file.has_extension(extension_):
+                return False
 
     if file.has_extension(".sdoc"):
         document = traceability_index.document_tree.get_document_by_path(
@@ -85,5 +80,15 @@ def screen_should_display_file(
             and project_config.export_included_documents
         ):
             return True
+        return False
+
+    # Any other document read by a registered format is displayed, e.g.,
+    # Markdown, JUnit XML, ReqIF or a format added via strictdoc_config.py.
+    for format_ in project_config.formats:
+        if not format_.supports_read():
+            continue
+        for extension_ in format_.read_extensions():
+            if file.has_extension(extension_):
+                return True
 
     return False

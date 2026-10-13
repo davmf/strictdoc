@@ -53,6 +53,13 @@ class MarkdownFormat(Format):
             doc_file.full_path, project_config
         )
 
+    def write_document_to_file(
+        self, document: SDocDocument, project_config: ProjectConfig
+    ) -> None:
+        SDMarkdownWriter.write_to_file(
+            document, line_width=project_config.document_line_width
+        )
+
     @staticmethod
     def supports_grammar() -> bool:
         return True

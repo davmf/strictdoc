@@ -3,6 +3,7 @@ import tempfile
 
 import pytest
 
+from strictdoc.backend.markdown.markdown_format import MarkdownFormat
 from strictdoc.backend.sdoc.sdoc_format import SDocFormat
 from strictdoc.core.project_config import (
     ProjectConfig,
@@ -76,6 +77,38 @@ def test_41_editable_document_extensions_excludes_non_editable_format():
     extensions = project_config.get_editable_document_extensions()
     assert extensions == [".sdoc"]
     assert ".pdf" not in extensions
+
+
+def test_45_editable_format_for_path_matches_by_extension():
+    sdoc_format = SDocFormat()
+    markdown_format = MarkdownFormat()
+    project_config = ProjectConfig(
+        formats=[HTML2PDFFormat(), sdoc_format, markdown_format]
+    )
+    assert (
+        project_config.get_editable_format_for_path("/docs/a.sdoc")
+        is sdoc_format
+    )
+    assert (
+        project_config.get_editable_format_for_path("/docs/a.md")
+        is markdown_format
+    )
+    assert (
+        project_config.get_editable_format_for_path("/docs/a.markdown")
+        is markdown_format
+    )
+    # The matching is case-insensitive, like the web server's former
+    # hardcoded Markdown check.
+    assert (
+        project_config.get_editable_format_for_path("/docs/README.MD")
+        is markdown_format
+    )
+
+
+def test_46_editable_format_for_path_returns_none_for_unknown_extension():
+    project_config = ProjectConfig(formats=[SDocFormat(), HTML2PDFFormat()])
+    assert project_config.get_editable_format_for_path("/docs/a.md") is None
+    assert project_config.get_editable_format_for_path("/docs/a.pdf") is None
 
 
 def test_60_valid_host_and_port():

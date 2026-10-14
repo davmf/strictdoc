@@ -25,6 +25,10 @@ Design package (read only, autogen):
 - verify X inside an element -> Parent relation with role "Verifies" on the
   element to X
 
+Both kinds of documents start with an autogen TEXT node that shows a Mermaid
+diagram of the file (see diagram.py). The writer skips this node, and the
+format rebuilds it after every save.
+
 Node MIDs are derived from the file's relative path and the UID or qualified
 name, so they stay stable across reloads.
 """
@@ -54,6 +58,10 @@ from strictdoc.backend.sdoc.models.node import (
 from strictdoc.backend.sdoc.models.reference import ParentReqReference
 from strictdoc.backend.sdoc.pickle_cache import PickleCache
 from strictdoc.backend.sysml import node_data
+from strictdoc.backend.sysml.diagram import (
+    as_rst_raw_html,
+    create_mermaid_diagram,
+)
 from strictdoc.backend.sysml.model import (
     SysMLAttribute,
     SysMLBlockComment,
@@ -72,6 +80,7 @@ from strictdoc.backend.sysml.model import (
     SysMLVerify,
 )
 from strictdoc.backend.sysml.parser import SysMLParser
+from strictdoc.core.document_meta import DocumentMeta
 from strictdoc.core.project_config import ProjectConfig
 from strictdoc.helpers.cast import assert_cast
 from strictdoc.helpers.exception import StrictDocException
@@ -113,7 +122,7 @@ DESIGN_TAGS: Dict[Tuple[str, bool], str] = {
 
 # Part of the pickle cache key. Bump it when the reader output changes, so
 # that cached documents built by an older reader are not reused.
-SYSML_CACHE_KIND = "sysml-reader-8"
+SYSML_CACHE_KIND = "sysml-reader-9"
 
 
 class SysMLReader:
@@ -156,12 +165,27 @@ class SysMLReader:
     ) -> SDocDocument:
         model = SysMLParser.parse_string(content, file_path=file_path)
         if is_requirements_model(model):
-            return _build_requirements_document(
+            document = _build_requirements_document(
                 model, file_path=file_path, relative_path=relative_path
             )
-        return _build_design_document(
-            model, file_path=file_path, relative_path=relative_path
-        )
+        else:
+            document = _build_design_document(
+                model, file_path=file_path, relative_path=relative_path
+            )
+        _update_diagram_node(document, model)
+        return document
+
+    @staticmethod
+    def refresh_diagram(document: SDocDocument) -> None:
+        """
+        Rebuild the diagram node from the file of the document.
+
+        The server keeps a document in memory after it saves it, so the
+        diagram is rebuilt from the text that was written.
+        """
+        document_meta = assert_cast(document.meta, DocumentMeta)
+        model = SysMLParser.parse_file(document_meta.input_doc_full_path)
+        _update_diagram_node(document, model)
 
 
 def is_requirements_model(model: SysMLModel) -> bool:
@@ -186,6 +210,46 @@ def is_requirements_model(model: SysMLModel) -> bool:
         if known_name != attribute_.name:
             return False
     return True
+
+
+def _update_diagram_node(document: SDocDocument, model: SysMLModel) -> None:
+    """
+    Show the diagram of the model in the first node of the document.
+
+    An existing diagram node gets a new STATEMENT field, so that HTML
+    rendered for the old diagram is not reused. The node is removed when
+    the model has nothing to draw.
+    """
+    diagram_node: Optional[SDocNode] = None
+    for node_ in document.section_contents:
+        if isinstance(node_, SDocNode) and node_data.is_diagram(node_):
+            diagram_node = node_
+            break
+    diagram_source = create_mermaid_diagram(model)
+    if diagram_source is None:
+        if diagram_node is not None:
+            document.section_contents.remove(diagram_node)
+        return
+    statement_field = _content_field(
+        STATEMENT_FIELD, as_rst_raw_html(diagram_source)
+    )
+    if diagram_node is not None:
+        statement_field.parent = diagram_node
+        diagram_node.ordered_fields_lookup[STATEMENT_FIELD] = [statement_field]
+        return
+    diagram_node = SDocNode(
+        parent=document,
+        node_type=TEXT_TAG,
+        fields=[statement_field],
+        relations=[],
+        autogen=True,
+    )
+    _wire_field_parents(diagram_node)
+    diagram_node.ng_document_reference = DocumentReference()
+    diagram_node.ng_document_reference.set_document(document)
+    diagram_node.ng_including_document_reference = DocumentReference()
+    node_data.set_is_diagram(diagram_node)
+    document.section_contents.insert(0, diagram_node)
 
 
 def _stable_mid(*parts: str) -> MID:

@@ -69,6 +69,11 @@ formats ``.markdown`` documents.
 
 3\) SysML doc comments can contain images. Use the RST ``image`` directive,
 or drop or paste an image into a requirement in the Web UI.
+
+4\) Each SysML document starts with a Mermaid diagram of its file. The diagram
+shows packages, elements, successions, and the ``satisfy``, ``verify`` and
+``allocate`` links. StrictDoc rebuilds it when it reads the file and after
+every save.
 <<<
 
 [[/SECTION]]

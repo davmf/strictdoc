@@ -17,7 +17,7 @@ Requirements package (editable):
   CONSTRAINT (require constraint text)
 - dependency from A to B -> Parent relation on A to B
 
-Design package (read only, autogen):
+Design package (autogen, edited in the web UI through editor.py):
 
 - part, action, calc def, verification and analysis elements -> nodes, with
   fields UID, TITLE, ELEMENT_KIND, STATEMENT and SOURCE
@@ -824,6 +824,7 @@ def _build_design_document(
         enclosing_node=None,
     )
     _resolve_design_relations(state)
+    node_data.set_source_hash(document, model.source_text)
     return document
 
 
@@ -867,7 +868,7 @@ SPECIALIZATION_LABELS = {
 }
 
 
-def _specialization_properties(
+def specialization_properties(
     specializations: List[SysMLSpecialization],
 ) -> List[Tuple[str, Optional[str]]]:
     """
@@ -884,7 +885,7 @@ def _specialization_properties(
     return [(label_, ", ".join(texts_)) for label_, texts_ in grouped.items()]
 
 
-def _split_units(value_text: Optional[str]) -> Tuple[str, str]:
+def split_units(value_text: Optional[str]) -> Tuple[str, str]:
     """
     Split `0.05 [mm]` into the value `0.05` and the units `mm`.
 
@@ -940,10 +941,10 @@ def _as_rst_details_table(element: SysMLElement) -> str:
         ("Modifiers", " ".join(element.modifiers)),
         ("Name", element.name),
         ("Short name", element.short_name),
-        *_specialization_properties(element.specializations),
+        *specialization_properties(element.specializations),
         ("Multiplicity", element.multiplicity),
-        ("Value", _split_units(element.value_text)[0]),
-        ("Units", _split_units(element.value_text)[1]),
+        ("Value", split_units(element.value_text)[0]),
+        ("Units", split_units(element.value_text)[1]),
         ("Annotations", " ".join(element.annotations)),
     ]
     present = {
@@ -985,11 +986,9 @@ def _as_rst_members_table(members: List[SysMLMember]) -> Optional[str]:
             "Modifiers": " ".join(member_.modifiers),
             "Name": name or "",
         }
-        for label_, text_ in _specialization_properties(
-            member_.specializations
-        ):
+        for label_, text_ in specialization_properties(member_.specializations):
             row[label_] = text_ or ""
-        row["Value"], row["Units"] = _split_units(member_.value_text)
+        row["Value"], row["Units"] = split_units(member_.value_text)
         groups.setdefault(kind, []).append(row)
     if len(groups) == 0:
         return None
@@ -1270,6 +1269,10 @@ def _create_design_node(
     node.ng_line_start = element.span.line_start
     node.ng_col_start = element.span.col_start
     node.reserved_mid = _stable_mid(state.relative_path, "design", uid)
+    member_span = (
+        element.member_span if element.member_span is not None else element.span
+    )
+    node_data.set_member_offset(node, member_span.byte_start)
     state.nodes_by_path.append((element_segments, node))
     return node
 

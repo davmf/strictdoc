@@ -12,8 +12,13 @@ and the shared model classes stay unchanged.
 - Derivation prefix: per document, whether dependencies use `#derivation`.
 - Diagram: per TEXT node, whether the node is the generated diagram of the
   file, which the writer skips.
+- Source hash: per design document, the SHA-256 of the text it was read
+  from. The editor uses it to detect changes on disk.
+- Member offset: per design node, the byte offset of its SysML element in
+  the file. The editor uses it to find the element again.
 """
 
+import hashlib
 import re
 from typing import Any, Dict, List, Optional, Union
 
@@ -26,6 +31,8 @@ _ATTRIBUTE_TYPES_KEY = "ng_sysml_attribute_types"
 _IMPORTS_KEY = "ng_sysml_imports"
 _DERIVATION_PREFIX_KEY = "ng_sysml_derivation_prefix"
 _DIAGRAM_KEY = "ng_sysml_diagram"
+_SOURCE_HASH_KEY = "ng_sysml_source_hash"
+_MEMBER_OFFSET_KEY = "ng_sysml_member_offset"
 
 
 def set_attribute_types(
@@ -68,6 +75,41 @@ def set_is_diagram(node: SDocNode) -> None:
 def is_diagram(node: SDocNode) -> bool:
     value: Any = getattr(node, _DIAGRAM_KEY, False)
     return bool(value)
+
+
+def source_hash(source_text: str) -> str:
+    return hashlib.sha256(source_text.encode("utf-8")).hexdigest()
+
+
+def set_source_hash(document: SDocDocument, source_text: str) -> None:
+    setattr(document, _SOURCE_HASH_KEY, source_hash(source_text))
+
+
+def get_source_hash(document: SDocDocument) -> Optional[str]:
+    value: Any = getattr(document, _SOURCE_HASH_KEY, None)
+    return value if isinstance(value, str) else None
+
+
+def set_member_offset(node: SDocNode, byte_offset: int) -> None:
+    setattr(node, _MEMBER_OFFSET_KEY, byte_offset)
+
+
+def get_member_offset(node: SDocNode) -> Optional[int]:
+    value: Any = getattr(node, _MEMBER_OFFSET_KEY, None)
+    return value if isinstance(value, int) else None
+
+
+def is_design_document(document: SDocDocument) -> bool:
+    """True for a SysML design package, which the SysML editor can edit."""
+    return document.autogen and get_source_hash(document) is not None
+
+
+def is_design_element_node(node: SDocNode) -> bool:
+    """True for a node of a SysML design element, e.g. a part def."""
+    if get_member_offset(node) is None:
+        return False
+    document = node.get_document()
+    return isinstance(document, SDocDocument) and is_design_document(document)
 
 
 def attribute_field_title(attribute_name: str) -> str:

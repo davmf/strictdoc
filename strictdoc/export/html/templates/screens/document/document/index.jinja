@@ -5,6 +5,7 @@
   <link rel="stylesheet" href="{{ view_object.render_static_url('media_zoom.css') }}"/>
   {%- if view_object.is_running_on_server %}
   <link rel="stylesheet" href="{{ view_object.render_static_url('move_node_tree.css') }}"/>
+  <link rel="stylesheet" href="{{ view_object.render_static_url('sysml_editor.css') }}"/>
   {%- endif %}
 {% endblock head_css %}
 
@@ -61,6 +62,7 @@
   <script src="{{ view_object.render_static_url('move_node_tree.js') }}"></script>
   <script src="{{ view_object.render_static_url('scroll_into_view.js') }}"></script>
   <script src="{{ view_object.render_static_url('tabs.js') }}"></script>
+  <script src="{{ view_object.render_static_url('sysml_editor.js') }}"></script>
   <script src="{{ view_object.render_static_url('action_button_guard.js') }}"></script>
   {%- endif -%}
 

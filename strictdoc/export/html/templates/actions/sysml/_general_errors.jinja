@@ -1,0 +1,13 @@
+{#
+  The _GENERAL_ errors are validation errors of the whole edit, for example
+  a syntax error or an unknown requirement UID.
+#}
+{%- for error_ in form_object.get_errors("_GENERAL_") -%}
+<sdoc-form-row>
+  <sdoc-form-row-main>
+    <sdoc-form-error data-testid="sysml-form-error">
+      {{ error_ }}
+    </sdoc-form-error>
+  </sdoc-form-row-main>
+</sdoc-form-row>
+{%- endfor -%}

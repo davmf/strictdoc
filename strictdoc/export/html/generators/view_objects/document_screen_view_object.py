@@ -41,6 +41,7 @@ from strictdoc.backend.sdoc.models.model import (
     SDocNodeIF,
 )
 from strictdoc.backend.sdoc.models.node import SDocNode, SDocNodeField
+from strictdoc.backend.sysml import node_data
 from strictdoc.core.document_iterator import DocumentIterationContext
 from strictdoc.core.document_tree import DocumentTree
 from strictdoc.core.document_tree_iterator import DocumentTreeIterator
@@ -804,9 +805,25 @@ class DocumentScreenViewObject:
         """
         return self.traceability_index.can_edit_document(document)
 
+    def can_edit_sysml_source(self, document: SDocDocument) -> bool:
+        """
+        Determines if the SysML source of a design package can be edited.
+        """
+        return node_data.is_design_document(document)
+
     #
     # Node Level Actions
     #
+
+    def can_edit_sysml_element(
+        self, node: Union[SDocDocument, SDocNode]
+    ) -> bool:
+        """
+        Determines if a node is a SysML design element with an editor.
+        """
+        return isinstance(node, SDocNode) and node_data.is_design_element_node(
+            node
+        )
 
     def can_edit_node(self, node: Union[SDocDocument, SDocNode]) -> bool:
         return self.traceability_index.can_edit_node(node)

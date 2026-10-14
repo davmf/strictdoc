@@ -103,6 +103,9 @@ class SysMLAttribute:
     value_text is the raw text after `=`, including any unit, e.g. `96 [s]`.
     value is the parsed expression tree, or None when the text is outside the
     supported expression syntax. units is the text of a trailing `[...]`.
+
+    kind is "attribute" when the declaration starts with the keyword, and
+    None otherwise. member_span also covers the leading `#` annotations.
     """
 
     name: Optional[str]
@@ -122,6 +125,8 @@ class SysMLAttribute:
     redefines: List[str] = field(default_factory=list)
     default_text: Optional[str] = None
     default_value: Optional[Expression] = None
+    kind: Optional[str] = None
+    member_span: Optional[SysMLSpan] = None
 
 
 @dataclass
@@ -136,6 +141,9 @@ class SysMLElement:
 
     doc is the text of the first doc comment, or None. docs holds all of
     them. members is empty when the element has no body.
+
+    member_span also covers the leading `#` annotations. body_span covers
+    the `{ ... }` body, or is None when the element ends with `;`.
     """
 
     kind: str
@@ -175,6 +183,8 @@ class SysMLElement:
     redefines: List[str] = field(default_factory=list)
     default_text: Optional[str] = None
     default_value: Optional[Expression] = None
+    member_span: Optional[SysMLSpan] = None
+    body_span: Optional[SysMLSpan] = None
 
 
 @dataclass

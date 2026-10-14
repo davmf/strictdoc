@@ -1,0 +1,51 @@
+/* SysML element and source editor, see templates/actions/sysml/. */
+
+.sysml_editor__heading {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.sysml_editor__table_scroll {
+  overflow-x: auto;
+  margin-bottom: 8px;
+}
+
+.sysml_editor__table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.sysml_editor__table th {
+  font-size: var(--font-size-xsm);
+  font-weight: 500;
+  text-align: left;
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+
+.sysml_editor__table td {
+  padding: 2px;
+  vertical-align: middle;
+}
+
+/* The selector outweighs the generic `sdoc-form input[type="text"]` rule. */
+sdoc-form input[type="text"].sysml_editor__input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 5em;
+  padding: 2px 4px;
+  font-family: var(--code-font-family);
+  font-size: var(--font-size-sm);
+}
+
+.sysml_editor__table tr[deleted] .sysml_editor__input {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+sdoc-contenteditable.sysml_editor__source {
+  font-family: var(--code-font-family);
+  font-size: var(--font-size-sm);
+  white-space: pre;
+  overflow-x: auto;
+}

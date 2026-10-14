@@ -1,0 +1,15 @@
+{# needs: field_label, field_value #}
+<sdoc-form-row>
+  <sdoc-form-row-main>
+    {%- with
+      field_class_name = "sysml_editor__source",
+      field_editable = true,
+      field_input_name = "sysml_source",
+      field_placeholder = "Enter SysML source here...",
+      field_type = "multiline",
+      testid_postfix = "sysml-source"
+    %}
+      {%- include "components/form/field/contenteditable/index.jinja" %}
+    {%- endwith -%}
+  </sdoc-form-row-main>
+</sdoc-form-row>

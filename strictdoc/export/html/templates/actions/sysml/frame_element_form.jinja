@@ -1,0 +1,95 @@
+{% extends "components/form/index.jinja" %}
+
+{%- set frame_id = "article-"~form_object.node_mid %}
+{%- set submit_url = "/actions/sysml/update_element" %}
+{%- set cancel_url = "/actions/sysml/cancel_edit_element?node_mid="~form_object.node_mid~"&context_document_mid="~form_object.context_document_mid %}
+
+{% block form_content %}
+
+  <input type="hidden" name="node_mid" value="{{ form_object.node_mid }}" />
+  <input type="hidden" name="context_document_mid" value="{{ form_object.context_document_mid }}" />
+  <input type="hidden" name="source_hash" value="{{ form_object.source_hash }}" />
+  <input type="hidden" name="element_kind" value="{{ form_object.element_kind }}" />
+
+  {% include "actions/sysml/_general_errors.jinja" %}
+
+{# Tables #}
+<sdoc-tab-content id="Tables" active>
+  <sdoc-form-row>
+    <sdoc-form-row-main>
+      <div class="sysml_editor__heading">DETAILS</div>
+      <div class="sysml_editor__table_scroll">
+        <table class="sysml_editor__table" data-testid="sysml-details-table">
+          <thead>
+            <tr>
+              {%- for column_ in form_object.details_columns %}
+              <th>{{ column_ }}</th>
+              {%- endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {%- for column_ in form_object.details_columns %}
+              {%- set key_ = form_object.column_input_key(column_) %}
+              <td>
+                <input
+                  type="text"
+                  class="sysml_editor__input"
+                  name="details_{{ key_ }}"
+                  value="{{ form_object.details[column_] }}"
+                  aria-label="{{ column_ }}"
+                  data-testid="sysml-details-{{ key_ }}"
+                />
+              </td>
+              {%- endfor %}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </sdoc-form-row-main>
+  </sdoc-form-row>
+
+  <sdoc-form-row>
+    <sdoc-form-row-main>
+      <div class="sysml_editor__heading">MEMBERS</div>
+      <div class="sysml_editor__table_scroll">
+        <table class="sysml_editor__table" data-testid="sysml-members-table">
+          <thead>
+            <tr>
+              {%- for column_ in form_object.members_columns %}
+              <th>{{ column_ }}</th>
+              {%- endfor %}
+              <th></th>
+            </tr>
+          </thead>
+          <tbody data-js-sysml-members>
+            {%- for row_ in form_object.rows %}
+              {% include "actions/sysml/_member_row.jinja" %}
+            {%- endfor %}
+          </tbody>
+          <template data-js-sysml-new-member-row>
+            {%- with row_ = none %}
+              {% include "actions/sysml/_member_row.jinja" %}
+            {%- endwith %}
+          </template>
+        </table>
+      </div>
+      <a
+        class="action_button"
+        href="#"
+        data-js-sysml-add-member
+        data-action-type="add_field"
+        data-testid="sysml-add-member-action"
+      >{% include "icons/ico16_add.svg" %} Add member</a>
+    </sdoc-form-row-main>
+  </sdoc-form-row>
+</sdoc-tab-content>
+
+{# Source #}
+<sdoc-tab-content id="Source">
+  {%- with field_label = form_object.element_kind~" (SysML source)", field_value = form_object.source %}
+    {% include "actions/sysml/_source_field.jinja" %}
+  {%- endwith %}
+</sdoc-tab-content>
+
+{% endblock form_content %}

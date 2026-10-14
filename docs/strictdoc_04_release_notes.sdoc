@@ -59,8 +59,8 @@ STATEMENT: >>>
 This release contains the following enhancements:
 
 1\) Added experimental support for SysML v2 files (``.sysml``). Requirements
-packages are editable. Design packages are read only and link to requirements
-through ``satisfy`` and ``verify`` statements. The format is enabled with
+packages are editable. Design packages link to requirements through
+``satisfy`` and ``verify`` statements. The format is enabled with
 ``SysMLFormat`` in ``strictdoc_config.py``.
 
 2\) Documents are saved through the format that reads them. Custom formats
@@ -69,6 +69,12 @@ formats ``.markdown`` documents.
 
 3\) SysML doc comments can contain images. Use the RST ``image`` directive,
 or drop or paste an image into a requirement in the Web UI.
+
+4\) SysML design packages are editable in the Web UI. The editor of a design
+element has a ``Tables`` tab for its ``DETAILS`` and ``MEMBERS`` rows and a
+``Source`` tab for its SysML text. The ``Edit SysML source`` action of the
+document edits the whole file. StrictDoc checks the syntax, the document
+and the requirement UIDs before it keeps a change.
 <<<
 
 [[/SECTION]]

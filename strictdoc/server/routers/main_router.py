@@ -64,6 +64,11 @@ from strictdoc.backend.sdoc.models.node import (
 from strictdoc.backend.sdoc_source_code.models.source_file_info import (
     SourceFileTraceabilityInfo,
 )
+from strictdoc.backend.sysml import editor as sysml_editor
+from strictdoc.backend.sysml import node_data
+from strictdoc.backend.sysml.editor import SysMLEditError
+from strictdoc.backend.sysml.model import SysMLElement
+from strictdoc.backend.sysml.parser import SysMLParser
 from strictdoc.core.analyzers.document_stats import DocumentTreeStats
 from strictdoc.core.analyzers.document_uid_analyzer import DocumentUIDAnalyzer
 from strictdoc.core.document_meta import DocumentMeta
@@ -128,6 +133,13 @@ from strictdoc.export.html.form_objects.requirement_form_object import (
     RequirementReferenceFormField,
     deduplicate_comma_separated_value,
 )
+from strictdoc.export.html.form_objects.sysml_form_object import (
+    GENERAL_ERRORS_KEY as SYSML_GENERAL_ERRORS_KEY,
+)
+from strictdoc.export.html.form_objects.sysml_form_object import (
+    SysMLElementFormObject,
+    SysMLSourceFormObject,
+)
 from strictdoc.export.html.generators.view_objects.document_chunks import (
     CHUNK_SIZE,
 )
@@ -164,6 +176,7 @@ from strictdoc.helpers.file_modification_time import (
     get_file_modification_time,
     set_file_modification_time,
 )
+from strictdoc.helpers.file_system import file_open_read_utf8
 from strictdoc.helpers.mid import MID
 from strictdoc.helpers.parallelizer import NullParallelizer
 from strictdoc.helpers.path_filter import PathFilter
@@ -2619,6 +2632,351 @@ def create_main_router(
             content=view_object.render_updated_nodes_and_toc(
                 [requirement], node_updated=False
             ),
+            headers={
+                "Content-Type": "text/vnd.turbo-stream.html",
+            },
+        )
+
+    #
+    # SysML design packages: element editor and source editor.
+    #
+
+    def _sysml_read_file_text(document: SDocDocument) -> str:
+        assert document.meta is not None
+        with file_open_read_utf8(document.meta.input_doc_full_path) as file_:
+            return file_.read()
+
+    def _sysml_write_file_text(document: SDocDocument, text: str) -> None:
+        assert document.meta is not None
+        document_watcher = getattr(app.state, "document_watcher", None)
+        if document_watcher is not None:
+            document_watcher.inhibit_next_change(
+                document.meta.input_doc_full_path
+            )
+        with open(
+            document.meta.input_doc_full_path,
+            "w",
+            encoding="utf8",
+            newline="",
+        ) as file_:
+            file_.write(text)
+
+    def _sysml_save_and_rebuild(
+        document: SDocDocument, new_text: str
+    ) -> Optional[str]:
+        """
+        Validate the new text, write it and rebuild the traceability index.
+
+        Returns an error message, or None on success. If the rebuild fails,
+        for example because a satisfy statement names an unknown requirement,
+        the original text is written back and the current index is kept.
+        """
+        assert document.meta is not None
+        try:
+            sysml_editor.validate_text(
+                new_text,
+                file_path=document.meta.input_doc_full_path,
+                relative_path=document.meta.document_filename,
+            )
+        except SysMLEditError as exception_:
+            return exception_.to_print_message()
+
+        original_text = _sysml_read_file_text(document)
+        _sysml_write_file_text(document, new_text)
+        try:
+            traceability_index = TraceabilityIndexBuilder.create(
+                project_config=project_config,
+                parallelizer=parallelizer,
+            )
+        except (DocumentTreeError, StrictDocException) as exception_:
+            _sysml_write_file_text(document, original_text)
+            return exception_.to_print_message()
+        except Exception:
+            _sysml_write_file_text(document, original_text)
+            raise
+        export_action.traceability_index = traceability_index
+        return None
+
+    def _sysml_get_design_element_node(node_mid: str) -> SDocNode:
+        node = export_action.traceability_index.get_node_by_mid_weak(
+            MID(node_mid)
+        )
+        if not isinstance(node, SDocNode) or not (
+            node_data.is_design_element_node(node)
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="The node is not an element of a SysML design package.",
+            )
+        return node
+
+    def _sysml_get_design_document(document_mid: str) -> SDocDocument:
+        document = export_action.traceability_index.get_node_by_mid_weak(
+            MID(document_mid)
+        )
+        if not isinstance(document, SDocDocument) or not (
+            node_data.is_design_document(document)
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="The document is not a SysML design package.",
+            )
+        return document
+
+    def _sysml_find_element(
+        document: SDocDocument, node: SDocNode, file_text: str
+    ) -> SysMLElement:
+        """
+        Find the SysML element of a node in the current file text.
+
+        The node stores the byte offset of its element. The offset is only
+        valid if the file has not changed since the document was read.
+        """
+        assert document.meta is not None
+        member_offset = node_data.get_member_offset(node)
+        element: Optional[SysMLElement] = None
+        if node_data.source_hash(file_text) == node_data.get_source_hash(
+            document
+        ):
+            model = SysMLParser.parse_string(
+                file_text, file_path=document.meta.input_doc_full_path
+            )
+            element = sysml_editor.find_element(
+                model, assert_cast(member_offset, int)
+            )
+        if element is None:
+            raise HTTPException(
+                status_code=409,
+                detail=("The SysML file has changed on disk. Reload the page."),
+            )
+        return element
+
+    def _sysml_document_view_object(
+        document: SDocDocument,
+    ) -> DocumentScreenViewObject:
+        assert document.meta is not None
+        link_renderer = LinkRenderer(
+            root_path=document.meta.get_root_path_prefix(),
+            static_path=project_config.dir_for_sdoc_assets,
+        )
+        markup_renderer = MarkupRenderer.create(
+            markup=document.config.get_markup(),
+            traceability_index=export_action.traceability_index,
+            link_renderer=link_renderer,
+            html_templates=html_generator.html_templates,
+            config=project_config,
+            context_document=document,
+        )
+        return DocumentScreenViewObject(
+            document_type=DocumentType.DOCUMENT,
+            document=document,
+            traceability_index=export_action.traceability_index,
+            project_config=project_config,
+            link_renderer=link_renderer,
+            markup_renderer=markup_renderer,
+            jinja_environment=env(),
+            git_client=html_generator.git_client,
+        )
+
+    def _sysml_render_updated_document(document_full_path: str) -> Response:
+        """
+        Render the whole document after a save.
+
+        The index is rebuilt by the save, so the document is looked up again.
+        Node MIDs can change, for example when an element is renamed.
+        """
+        document = (
+            export_action.traceability_index.document_tree.get_document_by_path(
+                document_full_path
+            )
+        )
+        html_generator.export_single_document_with_performance(
+            document=document,
+            traceability_index=export_action.traceability_index,
+            specific_documents=(DocumentType.DOCUMENT,),
+        )
+        view_object = _sysml_document_view_object(document)
+        return HTMLResponse(
+            content=view_object.render_updated_screen(),
+            status_code=200,
+            headers={
+                "Content-Type": "text/vnd.turbo-stream.html",
+            },
+        )
+
+    def _sysml_render_form(
+        template_name: str,
+        form_object: Union[SysMLElementFormObject, SysMLSourceFormObject],
+        status_code: int,
+    ) -> Response:
+        output = env().render_template_as_markup(
+            f"actions/sysml/{template_name}",
+            form_object=form_object,
+        )
+        return HTMLResponse(
+            content=output,
+            status_code=status_code,
+            headers={
+                "Content-Type": "text/vnd.turbo-stream.html",
+            },
+        )
+
+    @read_router.get("/actions/sysml/edit_element", response_class=Response)
+    def sysml__edit_element(
+        node_mid: str, context_document_mid: str
+    ) -> Response:
+        node = _sysml_get_design_element_node(node_mid)
+        document = assert_cast(node.get_document(), SDocDocument)
+        file_text = _sysml_read_file_text(document)
+        element = _sysml_find_element(document, node, file_text)
+        form_object = SysMLElementFormObject.create_from_element(
+            node_mid=node_mid,
+            context_document_mid=context_document_mid,
+            file_text=file_text,
+            element=element,
+        )
+        return _sysml_render_form(
+            "stream_edit_element.jinja.html", form_object, status_code=200
+        )
+
+    @write_router.post("/actions/sysml/update_element", response_class=Response)
+    def sysml__update_element(
+        request_form_data: FormData = Depends(parse_form_data),
+    ) -> Response:
+        form_object = SysMLElementFormObject.create_from_request(
+            request_form_data
+        )
+        node = _sysml_get_design_element_node(form_object.node_mid)
+        document = assert_cast(node.get_document(), SDocDocument)
+        assert document.meta is not None
+        document_full_path = document.meta.input_doc_full_path
+        file_text = _sysml_read_file_text(document)
+
+        if node_data.source_hash(file_text) != form_object.source_hash:
+            form_object.add_error(
+                SYSML_GENERAL_ERRORS_KEY,
+                "The SysML file has changed on disk since the editor was "
+                "opened. Cancel and open the editor again.",
+            )
+            return _sysml_render_form(
+                "stream_edit_element.jinja.html", form_object, status_code=422
+            )
+
+        element = _sysml_find_element(document, node, file_text)
+        new_text: Optional[str] = None
+        try:
+            new_text = sysml_editor.apply_element_edit(
+                file_text,
+                element,
+                details=form_object.details,
+                rows=form_object.rows,
+                source=form_object.source,
+            )
+        except SysMLEditError as exception_:
+            form_object.add_error(
+                SYSML_GENERAL_ERRORS_KEY, exception_.to_print_message()
+            )
+
+        if not form_object.any_errors() and new_text is not None:
+            save_error = _sysml_save_and_rebuild(document, new_text)
+            if save_error is not None:
+                form_object.add_error(SYSML_GENERAL_ERRORS_KEY, save_error)
+
+        if form_object.any_errors():
+            return _sysml_render_form(
+                "stream_edit_element.jinja.html", form_object, status_code=422
+            )
+
+        if new_text is None:
+            # Nothing has changed: close the editor.
+            view_object = _sysml_document_view_object(document)
+            return HTMLResponse(
+                content=view_object.render_updated_nodes_and_toc(
+                    [node], node_updated=False
+                ),
+                headers={
+                    "Content-Type": "text/vnd.turbo-stream.html",
+                },
+            )
+        return _sysml_render_updated_document(document_full_path)
+
+    @read_router.get(
+        "/actions/sysml/cancel_edit_element", response_class=Response
+    )
+    def sysml__cancel_edit_element(
+        node_mid: str,
+        context_document_mid: str,  # noqa: ARG001
+    ) -> Response:
+        node = _sysml_get_design_element_node(node_mid)
+        document = assert_cast(node.get_document(), SDocDocument)
+        view_object = _sysml_document_view_object(document)
+        return HTMLResponse(
+            content=view_object.render_updated_nodes_and_toc(
+                [node], node_updated=False
+            ),
+            headers={
+                "Content-Type": "text/vnd.turbo-stream.html",
+            },
+        )
+
+    @read_router.get(
+        "/actions/sysml/edit_document_source", response_class=Response
+    )
+    def sysml__edit_document_source(document_mid: str) -> Response:
+        document = _sysml_get_design_document(document_mid)
+        form_object = SysMLSourceFormObject.create_from_file_text(
+            document_mid=document_mid,
+            file_text=_sysml_read_file_text(document),
+        )
+        return _sysml_render_form(
+            "stream_edit_document_source.jinja.html",
+            form_object,
+            status_code=200,
+        )
+
+    @write_router.post(
+        "/actions/sysml/update_document_source", response_class=Response
+    )
+    def sysml__update_document_source(
+        request_form_data: FormData = Depends(parse_form_data),
+    ) -> Response:
+        form_object = SysMLSourceFormObject.create_from_request(
+            request_form_data
+        )
+        document = _sysml_get_design_document(form_object.document_mid)
+        assert document.meta is not None
+        document_full_path = document.meta.input_doc_full_path
+        file_text = _sysml_read_file_text(document)
+
+        if node_data.source_hash(file_text) != form_object.source_hash:
+            form_object.add_error(
+                SYSML_GENERAL_ERRORS_KEY,
+                "The SysML file has changed on disk since the editor was "
+                "opened. Cancel and open the editor again.",
+            )
+        elif sysml_editor.normalize_source(
+            form_object.source
+        ) != sysml_editor.normalize_source(file_text):
+            save_error = _sysml_save_and_rebuild(document, form_object.source)
+            if save_error is not None:
+                form_object.add_error(SYSML_GENERAL_ERRORS_KEY, save_error)
+
+        if form_object.any_errors():
+            return _sysml_render_form(
+                "stream_edit_document_source.jinja.html",
+                form_object,
+                status_code=422,
+            )
+        return _sysml_render_updated_document(document_full_path)
+
+    @read_router.get(
+        "/actions/sysml/cancel_edit_document_source", response_class=Response
+    )
+    def sysml__cancel_edit_document_source(document_mid: str) -> Response:
+        document = _sysml_get_design_document(document_mid)
+        view_object = _sysml_document_view_object(document)
+        return HTMLResponse(
+            content=view_object.render_updated_screen(),
             headers={
                 "Content-Type": "text/vnd.turbo-stream.html",
             },

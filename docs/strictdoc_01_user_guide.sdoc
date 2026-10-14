@@ -5359,8 +5359,8 @@ StrictDoc reads and writes SysML v2 textual files (``.sysml``) as traceable
 documents. The format is experimental and is not enabled by default.
 
 Requirements packages are editable in StrictDoc. Design packages are
-read only. Their elements appear as nodes that satisfy or verify
-requirements.
+edited with the SysML editor of the Web UI. Their elements appear as nodes
+that satisfy or verify requirements.
 <<<
 
 [[SECTION]]
@@ -5493,9 +5493,11 @@ TITLE: Design packages
 [TEXT]
 MID: 3a8328ed10ff48cdab3ab6c8c922a8e3
 STATEMENT: >>>
-StrictDoc shows design packages as read-only documents. Their elements appear
-in the document tree with the fields ``UID``, ``TITLE``, ``ELEMENT_KIND``,
-``STATEMENT``, ``SOURCE`` and ``SATISFIED_BY_PATH``.
+StrictDoc shows the elements of design packages in the document tree with
+the fields ``UID``, ``TITLE``, ``ELEMENT_KIND``, ``STATEMENT``, ``DETAILS``,
+``MEMBERS``, ``SOURCE`` and ``SATISFIED_BY_PATH``. StrictDoc generates the
+fields from the SysML text. To change them, use the SysML editor. See the
+section "Editing design packages".
 
 The SysML subset in design packages includes:
 
@@ -5539,6 +5541,61 @@ time.
 [[/SECTION]]
 
 [[SECTION]]
+MID: 6a5de6bb7ec04dd99b570ebea427a785
+TITLE: Editing design packages
+
+[TEXT]
+MID: b12065bbf340458e9be2aea9d6372f9d
+STATEMENT: >>>
+In the Web UI, each design element has an edit action. The editor has two
+tabs:
+
+- The ``Tables`` tab shows the ``DETAILS`` row of the element and one
+  ``MEMBERS`` row for each direct attribute or usage. You can change, add
+  and delete rows. The ``Kind`` column takes a keyword such as ``part`` or
+  ``part def``.
+- The ``Source`` tab shows the SysML text of the element, from its first
+  ``#`` annotation to its closing ``}`` or ``;``.
+
+Save the changes of one tab at a time. StrictDoc rejects a save in which
+both tabs have changes.
+
+StrictDoc writes table changes to the file as follows:
+
+- A changed row rewrites the declaration of its member up to the opening
+  ``{`` or the closing ``;``. The body of the member stays the same.
+- A changed row keeps the values that its table has no column for: the
+  short name and annotations of a member, and any ``default`` value.
+- A deleted row removes the member, including its body.
+- StrictDoc adds a new row before the closing ``}`` of the element. An
+  element without a body gets one.
+
+The rest of the file stays the same, including comments and layout.
+
+The document has an ``Edit SysML source`` action that edits the whole file.
+Use it for changes outside a single element, for example to packages, to
+the doc comments of packages, or to several elements at once.
+
+StrictDoc checks the new text before it keeps a change:
+
+1. The text must parse as SysML v2.
+2. StrictDoc must be able to read the text as a document. For example, a
+   ``verify`` statement must be inside an element.
+3. Each ``satisfy`` and ``verify`` statement must name a requirement UID
+   that exists in the project. StrictDoc writes the file and rebuilds the
+   traceability index. If the rebuild fails, StrictDoc restores the
+   previous file content.
+
+If a check fails, the editor shows the error and the file keeps its
+previous content.
+
+If the file changes on disk after the editor opens, StrictDoc rejects the
+save. Cancel and open the editor again.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
 MID: 94a6805674df48b5ba8abde748be3329
 TITLE: Images
 
@@ -5567,8 +5624,8 @@ requirement, or paste one from the clipboard. StrictDoc saves the file to
 ``_assets/<UID>/`` next to the ``.sysml`` file and adds the directive to the
 doc comment. Save a new requirement before you add an image to it.
 
-Design packages are read only, so add images to them by hand. In design
-packages, the ``SOURCE`` field is shown as a code block.
+In design packages, add the directive to a doc comment with the SysML
+editor. StrictDoc shows the ``SOURCE`` field as a code block.
 <<<
 
 [[/SECTION]]

@@ -1,0 +1,18 @@
+{% extends "components/form/index.jinja" %}
+
+{%- set frame_id = "article-"~form_object.document_mid %}
+{%- set submit_url = "/actions/sysml/update_document_source" %}
+{%- set cancel_url = "/actions/sysml/cancel_edit_document_source?document_mid="~form_object.document_mid %}
+
+{% block form_content %}
+
+  <input type="hidden" name="document_mid" value="{{ form_object.document_mid }}" />
+  <input type="hidden" name="source_hash" value="{{ form_object.source_hash }}" />
+
+  {% include "actions/sysml/_general_errors.jinja" %}
+
+  {%- with field_label = "SysML source", field_value = form_object.source %}
+    {% include "actions/sysml/_source_field.jinja" %}
+  {%- endwith %}
+
+{% endblock form_content %}

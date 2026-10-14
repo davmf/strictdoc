@@ -81,7 +81,7 @@ def test_05_quotes_and_backslashes_in_names_are_escaped():
         text, file_path="t.sysml", relative_path="t.sysml"
     )
     assert document.title == "Bob's package"
-    requirement_ = document.section_contents[0]
+    requirement_ = document.section_contents[1]
     assert requirement_.reserved_title == "Say 'hi' \\ now"
     assert _roundtrip(text) == text
 
@@ -177,7 +177,7 @@ def test_21_image_directive_is_kept_in_the_statement_field():
     document = SysMLReader.read_from_string(
         IMAGE_TEXT, file_path="t.sysml", relative_path="t.sysml"
     )
-    requirement = document.section_contents[0]
+    requirement = document.section_contents[1]
     statement = requirement.get_field_by_name("STATEMENT").get_text_value()
     assert ".. image:: ./_assets/0123456789abcdef0123456789abcdef/" in statement
     assert document.config.get_markup() == "RST"

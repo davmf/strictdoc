@@ -1,0 +1,31 @@
+#
+# Export SysML documents with a Mermaid diagram at the top of each document.
+#
+# The diagram comes before the first doc comment of the file. It shows the
+# requirement in the requirements package, and the definitions, the nested
+# usage and the satisfy arrow in the design package. The top-level package is
+# the document and has no box.
+#
+
+RUN: %strictdoc export %S --formats=html --output-dir %T --config %S/strictdoc_config.py | filecheck %s --dump-input=fail
+CHECK: Export completed.
+
+RUN: %cat %T/html/%THIS_TEST_FOLDER/requirements.html | filecheck %s --dump-input=fail --check-prefix CHECK-REQ
+CHECK-REQ: mermaid.min.js
+CHECK-REQ: <pre class="mermaid">
+CHECK-REQ: flowchart LR
+CHECK-REQ-NOT: «package»
+CHECK-REQ: «requirement»&lt;br/&gt;#lt;'DGM-REQ-1'#gt; Heating
+CHECK-REQ: </pre>
+CHECK-REQ: Requirements text below the diagram.
+
+RUN: %cat %T/html/%THIS_TEST_FOLDER/design.html | filecheck %s --dump-input=fail --check-prefix CHECK-DESIGN
+CHECK-DESIGN: <pre class="mermaid">
+CHECK-DESIGN: n1["«part def»&lt;br/&gt;Heater"]
+CHECK-DESIGN: subgraph n2["«part#160;def»#160;Station"]
+CHECK-DESIGN: n3("«part»&lt;br/&gt;heater : Heater")
+CHECK-DESIGN: n4("«requirement»&lt;br/&gt;DGM-REQ-1")
+CHECK-DESIGN: n3 -.-&gt;|"«satisfy»"| n4
+CHECK-DESIGN: n3 -.-&gt;|"«defined by»"| n1
+CHECK-DESIGN: </pre>
+CHECK-DESIGN: Design text below the diagram.

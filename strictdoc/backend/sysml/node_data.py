@@ -10,6 +10,8 @@ and the shared model classes stay unchanged.
   declarations without a value.
 - Imports: per document or section, the import statements in file order.
 - Derivation prefix: per document, whether dependencies use `#derivation`.
+- Diagram: per TEXT node, whether the node is the generated diagram of the
+  file, which the writer skips.
 """
 
 import re
@@ -23,6 +25,7 @@ SysMLContainer = Union[SDocDocument, SDocNode]
 _ATTRIBUTE_TYPES_KEY = "ng_sysml_attribute_types"
 _IMPORTS_KEY = "ng_sysml_imports"
 _DERIVATION_PREFIX_KEY = "ng_sysml_derivation_prefix"
+_DIAGRAM_KEY = "ng_sysml_diagram"
 
 
 def set_attribute_types(
@@ -55,6 +58,15 @@ def set_derivation_prefix(document: SDocDocument, is_enabled: bool) -> None:
 
 def get_derivation_prefix(document: SDocDocument) -> bool:
     value: Any = getattr(document, _DERIVATION_PREFIX_KEY, False)
+    return bool(value)
+
+
+def set_is_diagram(node: SDocNode) -> None:
+    setattr(node, _DIAGRAM_KEY, True)
+
+
+def is_diagram(node: SDocNode) -> bool:
+    value: Any = getattr(node, _DIAGRAM_KEY, False)
     return bool(value)
 
 

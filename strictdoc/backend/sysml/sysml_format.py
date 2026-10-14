@@ -61,6 +61,7 @@ class SysMLFormat(Format):
         project_config: ProjectConfig,  # noqa: ARG002
     ) -> None:
         SysMLWriter.write_to_file(document)
+        SysMLReader.refresh_diagram(document)
 
     @staticmethod
     def supports_grammar() -> bool:

@@ -16,7 +16,8 @@ Reading a canonical file and writing it back produces identical text.
 Not preserved: line notes (`//`), block comments (`/* */`) that are not doc
 comments, and the original order of blocks, which is normalised.
 
-The writer refuses to write autogen documents, i.e. design packages.
+The writer refuses to write autogen documents, i.e. design packages. It
+skips the generated diagram node.
 """
 
 import re
@@ -74,6 +75,13 @@ class SysMLWriter:
         pad = _INDENT * indent_level
         blocks: List[str] = []
 
+        children = [
+            child_
+            for child_ in children
+            if not (
+                isinstance(child_, SDocNode) and node_data.is_diagram(child_)
+            )
+        ]
         for child_ in children:
             if isinstance(child_, SDocNode) and child_.node_type == "TEXT":
                 blocks.append(

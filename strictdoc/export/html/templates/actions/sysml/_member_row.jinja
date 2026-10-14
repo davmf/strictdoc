@@ -1,0 +1,34 @@
+{#
+  needs: form_object, row_ (none for the template of a new row)
+#}
+{%- set is_deleted_ = row_ is not none and row_.is_deleted %}
+<tr
+  data-js-sysml-member-row
+  {% if is_deleted_ %}deleted{% endif %}
+  data-testid="sysml-member-row"
+>
+  {%- for column_ in form_object.members_columns %}
+  {%- set key_ = form_object.column_input_key(column_) %}
+  <td>
+    <input
+      type="text"
+      class="sysml_editor__input"
+      name="member_{{ key_ }}"
+      value="{{ row_.values[column_] if row_ is not none else '' }}"
+      aria-label="{{ column_ }}"
+      data-testid="sysml-member-{{ key_ }}"
+    />
+  </td>
+  {%- endfor %}
+  <td>
+    <input type="hidden" name="member_row_id" value="{{ row_.row_id if row_ is not none else form_object.new_row_id }}" />
+    <input type="hidden" name="member_deleted" value="{{ 'true' if is_deleted_ else 'false' }}" data-js-sysml-member-deleted />
+    <a
+      class="field_action"
+      href="#"
+      title="Delete member"
+      data-js-sysml-delete-member
+      data-testid="sysml-delete-member-action"
+    >{% include "icons/ico16_delete.svg" %}</a>
+  </td>
+</tr>

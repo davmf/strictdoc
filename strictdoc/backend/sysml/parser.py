@@ -294,7 +294,10 @@ def _convert_member(
         for annotation_ in member_obj.annotations
     ]
     core = member_obj.core
-    return _convert_core(core, context, annotations)
+    member = _convert_core(core, context, annotations)
+    if isinstance(member, (SysMLAttribute, SysMLElement)):
+        member.member_span = context.span_of(member_obj)
+    return member
 
 
 def _convert_core(
@@ -542,6 +545,7 @@ def _convert_declaration(
                 if default_text is not None
                 else None
             ),
+            kind=kind,
         )
 
     members: List[SysMLMember] = []
@@ -587,5 +591,8 @@ def _convert_declaration(
             _parse_expression_or_none(default_text)
             if default_text is not None
             else None
+        ),
+        body_span=(
+            context.span_of(core.body) if core.body is not None else None
         ),
     )

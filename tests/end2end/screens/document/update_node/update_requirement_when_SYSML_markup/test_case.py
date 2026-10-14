@@ -40,7 +40,8 @@ class Test(E2ECase):
             screen_document.assert_on_screen_document()
             screen_document.assert_header_document_title("Document 1")
 
-            requirement = screen_document.get_node()
+            # The first node is the diagram of the file.
+            requirement = screen_document.get_node(node_order=2)
 
             requirement.assert_requirement_statement_contains(
                 "Requirement statement."

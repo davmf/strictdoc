@@ -5574,6 +5574,59 @@ packages, the ``SOURCE`` field is shown as a code block.
 [[/SECTION]]
 
 [[SECTION]]
+MID: 01cb0cd52e804376891304ba8d4cf5c9
+TITLE: Diagrams
+
+[TEXT]
+MID: 359517cf56174d279d7900b718ffa41c
+STATEMENT: >>>
+Each SysML document starts with a diagram of its file. StrictDoc builds the
+diagram from the file when it reads the file and again after every save in the
+Web UI, so the diagram always matches the file. The diagram is a Mermaid
+flowchart that follows the SysML v2 graphical notation where Mermaid allows it.
+
+.. list-table:: Diagram notation
+    :header-rows: 1
+    :widths: 40 60
+
+    * - SysML v2
+      - Diagram
+    * - Package, or element with members
+      - Box that contains the members. The title is the keyword and the name,
+        for example ``«part def» Station``. The top-level package is the
+        document and has no box.
+    * - Definition, for example ``part def``
+      - Box with square corners.
+    * - Usage, for example ``part`` or ``requirement``
+      - Box with rounded corners.
+    * - ``attribute``
+      - Line in the box of its owner. Requirements do not list their
+        attributes.
+    * - ``decide`` and ``merge``
+      - Diamond.
+    * - ``fork`` and ``join``
+      - Bar.
+    * - ``start`` and ``done``
+      - Filled circle and framed circle.
+    * - Succession, ``then``, ``if ... then`` and ``else``
+      - Solid arrow. A guard is the label, for example
+        ``[not sample.invalid]``.
+    * - ``satisfy``, ``verify``, ``allocate``, ``perform`` and ``dependency``
+      - Dashed arrow labelled with the keyword, for example ``«satisfy»``. A
+        ``#derivation`` dependency is labelled ``«derive»``.
+    * - Typing or specialisation by a definition in the same file
+      - Dashed arrow labelled ``«defined by»`` or ``«specializes»``.
+
+A reference to an element outside the file, such as a requirement in another
+package, is a box with a dashed border.
+
+The diagram is a read-only node. StrictDoc does not write it to the ``.sysml``
+file.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
 MID: 65fdbcc5ea6445e4ba0b7037fa2b8b6b
 TITLE: Syntax errors
 

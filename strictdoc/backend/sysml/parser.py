@@ -30,7 +30,7 @@ Notes for consumers:
 import bisect
 import re
 import textwrap
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from textx import TextXSyntaxError, metamodel_from_str
 
@@ -333,6 +333,8 @@ def _convert_core(
             targets=[_qualified_name(raw_) for raw_ in core.targets],
             annotations=annotations,
             span=span,
+            members=_convert_optional_body(core.body, context),
+            body_span=_optional_span(core.body, context),
         )
     if class_name == "Satisfy":
         return SysMLSatisfy(
@@ -342,6 +344,8 @@ def _convert_core(
             span=span,
             by_path=_reference_path(core.by) if core.by else [],
             source_text=context.source_of(core),
+            members=_convert_optional_body(core.body, context),
+            body_span=_optional_span(core.body, context),
         )
     if class_name == "Verify":
         return SysMLVerify(
@@ -349,6 +353,8 @@ def _convert_core(
             annotations=annotations,
             span=span,
             source_text=context.source_of(core),
+            members=_convert_optional_body(core.body, context),
+            body_span=_optional_span(core.body, context),
         )
     if class_name == "Allocate":
         return SysMLAllocate(
@@ -418,10 +424,13 @@ def _convert_core(
         if core.block is not None:
             body_text = _block_inner_text(context.source_of(core.block))
         return SysMLMetadataUsage(
-            name=_unquote_name(core.name),
+            name=_qualified_name(core.name),
             body_text=body_text,
             annotations=annotations,
             span=span,
+            values=(
+                _metadata_values(body_text) if body_text is not None else {}
+            ),
         )
     if class_name == "MemberRequireConstraint":
         return SysMLRequireConstraint(
@@ -448,6 +457,40 @@ def _convert_body_members(
     body: Any, context: _ConversionContext
 ) -> List[SysMLMember]:
     return [_convert_member(member_, context) for member_ in body.members]
+
+
+def _convert_optional_body(
+    body: Any, context: _ConversionContext
+) -> List[SysMLMember]:
+    if body is None:
+        return []
+    return _convert_body_members(body, context)
+
+
+def _optional_span(
+    textx_object: Any, context: _ConversionContext
+) -> Optional[SysMLSpan]:
+    if textx_object is None:
+        return None
+    return context.span_of(textx_object)
+
+
+_METADATA_ASSIGNMENT_PATTERN = re.compile(
+    r"(?:\bredefines\s+|:>>\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([^;]+);"
+)
+
+
+def _metadata_values(body_text: str) -> Dict[str, str]:
+    """
+    Map each `name = value;` assignment of a metadata block to its value.
+
+    Nested blocks are not supported. The value text is stripped but keeps
+    its quotes, e.g. `"ab12"`.
+    """
+    return {
+        match_.group(1): match_.group(2).strip()
+        for match_ in _METADATA_ASSIGNMENT_PATTERN.finditer(body_text)
+    }
 
 
 def _convert_specializations(

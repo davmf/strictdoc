@@ -110,6 +110,18 @@ class Format(ABC):
             f"document: {document.title}."
         )
 
+    def traceability_index_build_finished(
+        self,
+        traceability_index: "TraceabilityIndex",  # noqa: ARG002
+    ) -> None:
+        """
+        Called for each format of the project after the traceability index
+        is built, before the user plugin. A format can use it to validate
+        cross-document content, for example by adding issues to
+        traceability_index.validation_index. Default: do nothing.
+        """
+        return
+
     @staticmethod
     @abstractmethod
     def supports_grammar() -> bool:

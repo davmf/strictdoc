@@ -16,6 +16,9 @@ Requirements package (editable):
   one field per attribute (upper snake case), STATEMENT (first doc), and
   CONSTRAINT (require constraint text)
 - dependency from A to B -> Parent relation on A to B
+- @StrictDocVersioning::ItemVersion in a requirement -> ITEM_VERSION field,
+  and @StrictDocVersioning::TracedVersion in a dependency -> traced version
+  of the relation (see versioning.py)
 
 Design package (autogen, edited in the web UI through editor.py):
 
@@ -24,6 +27,7 @@ Design package (autogen, edited in the web UI through editor.py):
 - satisfy X by E -> Parent relation with role "Satisfies" on E to X
 - verify X inside an element -> Parent relation with role "Verifies" on the
   element to X
+- item versions and traced versions as in requirements packages
 
 Both kinds of documents start with an autogen TEXT node that shows a Mermaid
 diagram of the file (see diagram.py). The writer skips this node, and the
@@ -57,7 +61,7 @@ from strictdoc.backend.sdoc.models.node import (
 )
 from strictdoc.backend.sdoc.models.reference import ParentReqReference
 from strictdoc.backend.sdoc.pickle_cache import PickleCache
-from strictdoc.backend.sysml import node_data
+from strictdoc.backend.sysml import node_data, versioning
 from strictdoc.backend.sysml.diagram import (
     as_rst_raw_html,
     create_mermaid_diagram,
@@ -80,6 +84,11 @@ from strictdoc.backend.sysml.model import (
     SysMLVerify,
 )
 from strictdoc.backend.sysml.parser import SysMLParser
+from strictdoc.backend.sysml.versioning import (
+    ITEM_VERSION_FIELD,
+    SysMLVersioningError,
+)
+from strictdoc.backend.sysml.writer import SysMLWriter
 from strictdoc.core.document_meta import DocumentMeta
 from strictdoc.core.project_config import ProjectConfig
 from strictdoc.helpers.cast import assert_cast
@@ -99,6 +108,7 @@ RESERVED_REQUIREMENT_FIELDS = {
     TITLE_FIELD,
     STATEMENT_FIELD,
     CONSTRAINT_FIELD,
+    ITEM_VERSION_FIELD,
     "MID",
 }
 SATISFIES_ROLE = "Satisfies"
@@ -122,7 +132,7 @@ DESIGN_TAGS: Dict[Tuple[str, bool], str] = {
 
 # Part of the pickle cache key. Bump it when the reader output changes, so
 # that cached documents built by an older reader are not reused.
-SYSML_CACHE_KIND = "sysml-reader-10"
+SYSML_CACHE_KIND = "sysml-reader-11"
 
 # Specialisation operators that name a type of the element. Redefinition
 # (`:>>`) and subsetting name features, not types.
@@ -137,9 +147,15 @@ class SysMLReader:
         file_path: str,
         project_config: ProjectConfig,
         relative_path: Optional[str] = None,
+        item_versioning: bool = False,
     ) -> SDocDocument:
+        cache_kind = (
+            f"{SYSML_CACHE_KIND}-versioning"
+            if item_versioning
+            else SYSML_CACHE_KIND
+        )
         cached_content = PickleCache.read_from_cache(
-            file_path, project_config, SYSML_CACHE_KIND
+            file_path, project_config, cache_kind
         )
         if cached_content is not None:
             return assert_cast(cached_content, SDocDocument)
@@ -154,10 +170,11 @@ class SysMLReader:
                 if relative_path is not None
                 else os.path.basename(file_path)
             ),
+            item_versioning=item_versioning,
         )
         document.build_search_index()
         PickleCache.save_to_cache(
-            document, file_path, project_config, SYSML_CACHE_KIND
+            document, file_path, project_config, cache_kind
         )
         return document
 
@@ -166,11 +183,20 @@ class SysMLReader:
         content: str,
         file_path: Optional[str],
         relative_path: str,
+        item_versioning: bool = False,
     ) -> SDocDocument:
+        """
+        With item_versioning, the requirements grammar always has the
+        ITEM_VERSION field. Without it, the field is there only when a
+        requirement of the file has a version.
+        """
         model = SysMLParser.parse_string(content, file_path=file_path)
         if is_requirements_model(model):
             document = _build_requirements_document(
-                model, file_path=file_path, relative_path=relative_path
+                model,
+                file_path=file_path,
+                relative_path=relative_path,
+                item_versioning=item_versioning,
             )
         else:
             document = _build_design_document(
@@ -351,9 +377,12 @@ def _is_representable_requirement(element: SysMLElement) -> bool:
         return False
     doc_count = 0
     constraint_count = 0
+    item_version_count = 0
     attribute_names: Set[str] = set()
     for member_ in element.members:
-        if isinstance(member_, SysMLDocComment):
+        if versioning.is_item_version(member_):
+            item_version_count += 1
+        elif isinstance(member_, SysMLDocComment):
             doc_count += 1
         elif isinstance(member_, SysMLRequireConstraint):
             constraint_count += 1
@@ -372,11 +401,15 @@ def _is_representable_requirement(element: SysMLElement) -> bool:
                 return False
         else:
             return False
-    return doc_count <= 1 and constraint_count <= 1
+    return doc_count <= 1 and constraint_count <= 1 and item_version_count <= 1
 
 
 def _is_representable_dependency(dependency: SysMLDependency) -> bool:
     if len(dependency.sources) == 0 or len(dependency.targets) == 0:
+        return False
+    if len(dependency.members) > 1 or not all(
+        versioning.is_traced_version(member_) for member_ in dependency.members
+    ):
         return False
     return all(
         annotation_ == "derivation" for annotation_ in dependency.annotations
@@ -437,6 +470,7 @@ def _build_requirements_document(
     model: SysMLModel,
     file_path: Optional[str],
     relative_path: str,
+    item_versioning: bool,
 ) -> SDocDocument:
     top_package = [m_ for m_ in model.members if isinstance(m_, SysMLPackage)][
         0
@@ -462,7 +496,11 @@ def _build_requirements_document(
         section_contents=[],
     )
     document.grammar = _create_requirements_grammar(
-        document, attribute_field_titles
+        document,
+        attribute_field_titles,
+        has_item_version=(
+            item_versioning or _has_item_version(top_package.members)
+        ),
     )
     document.ng_including_document_reference = DocumentReference()
     document_reference = DocumentReference()
@@ -484,8 +522,21 @@ def _build_requirements_document(
     return document
 
 
+def _has_item_version(members: List[SysMLMember]) -> bool:
+    for member_ in members:
+        if isinstance(member_, SysMLPackage):
+            if _has_item_version(member_.members):
+                return True
+        elif isinstance(member_, SysMLElement):
+            if versioning.find_item_version(member_.members) is not None:
+                return True
+    return False
+
+
 def _create_requirements_grammar(
-    document: SDocDocument, attribute_field_titles: List[str]
+    document: SDocDocument,
+    attribute_field_titles: List[str],
+    has_item_version: bool,
 ) -> DocumentGrammar:
     section_element = DocumentGrammar.create_default_section_element(
         parent=None, enable_mid=False
@@ -507,6 +558,15 @@ def _create_requirements_grammar(
             required="False",
         ),
     ]
+    if has_item_version:
+        fields.append(
+            GrammarElementFieldString(
+                parent=None,
+                title=ITEM_VERSION_FIELD,
+                human_title=None,
+                required="False",
+            )
+        )
     for attribute_title_ in attribute_field_titles:
         fields.append(
             GrammarElementFieldString(
@@ -656,11 +716,17 @@ def _create_requirement_node(
                 node_data.attribute_field_title(attribute_.name)
             ] = _collapse_value(attribute_.value_text)
 
+    item_version = _read_item_version(element, state.file_path)
+
     fields: List[SDocNodeField] = []
     if element.short_name is not None:
         fields.append(_single_line_field(UID_FIELD, element.short_name))
     if element.name is not None and len(element.name) > 0:
         fields.append(_single_line_field(TITLE_FIELD, element.name))
+    if item_version is not None:
+        fields.append(
+            _single_line_field(ITEM_VERSION_FIELD, str(item_version.version))
+        )
     for field_title_ in state.attribute_field_titles:
         if field_title_ in value_by_field_title:
             fields.append(
@@ -699,6 +765,8 @@ def _create_requirement_node(
             for attribute_ in attributes
         },
     )
+    node_data.set_item_version(node, item_version)
+    node_data.set_computed_hash(node, SysMLWriter.requirement_hash(node))
 
     if element.short_name is not None:
         if element.short_name in state.nodes_by_uid:
@@ -717,6 +785,9 @@ def _resolve_dependencies(state: _RequirementsBuildState) -> None:
     for dependency_ in state.pending_dependencies:
         if "derivation" in dependency_.annotations:
             state.has_derivation_prefix = True
+        traced_version = _read_traced_version(
+            dependency_.members, dependency_.span, state.file_path
+        )
         for source_ in dependency_.sources:
             child_node = state.nodes_by_uid.get(source_)
             if child_node is None:
@@ -727,11 +798,37 @@ def _resolve_dependencies(state: _RequirementsBuildState) -> None:
                     "in this file."
                 )
             for target_ in dependency_.targets:
-                child_node.relations.append(
-                    ParentReqReference(
-                        parent=child_node, ref_uid=target_, role=None
-                    )
+                reference = ParentReqReference(
+                    parent=child_node, ref_uid=target_, role=None
                 )
+                node_data.set_traced_version(reference, traced_version)
+                child_node.relations.append(reference)
+
+
+def _read_item_version(
+    element: SysMLElement, file_path: Optional[str]
+) -> Optional[versioning.ItemVersion]:
+    try:
+        return versioning.read_item_version(element.members)
+    except SysMLVersioningError as exception_:
+        raise StrictDocException(
+            "Could not read SysML file: "
+            f"{_location_message(file_path, element.span)}: "
+            f"{exception_.to_print_message()}"
+        ) from exception_
+
+
+def _read_traced_version(
+    members: List[SysMLMember], span: SysMLSpan, file_path: Optional[str]
+) -> Optional[int]:
+    try:
+        return versioning.read_traced_version(members)
+    except SysMLVersioningError as exception_:
+        raise StrictDocException(
+            "Could not read SysML file: "
+            f"{_location_message(file_path, span)}: "
+            f"{exception_.to_print_message()}"
+        ) from exception_
 
 
 SATISFY_TAG = "SATISFY"
@@ -741,6 +838,7 @@ SATISFIED_BY_PATH_FIELD = "SATISFIED_BY_PATH"
 DESIGN_FIELD_TITLES = (
     UID_FIELD,
     TITLE_FIELD,
+    ITEM_VERSION_FIELD,
     "ELEMENT_KIND",
     STATEMENT_FIELD,
     DETAILS_FIELD,
@@ -762,6 +860,7 @@ class _PendingRelation:
     container: Union[SDocDocument, SDocNode]
     span: SysMLSpan
     source_text: str
+    traced_version: Optional[int]
 
 
 @dataclass
@@ -771,6 +870,7 @@ class _DesignBuildState:
     including_reference: DocumentReference
     relative_path: str
     file_path: Optional[str]
+    source_data: bytes
     # (qualified name segments, node) for every design node, in file order.
     nodes_by_path: List[Tuple[List[str], SDocNode]] = field(
         default_factory=list
@@ -822,6 +922,7 @@ def _build_design_document(
         including_reference=DocumentReference(),
         relative_path=relative_path,
         file_path=file_path,
+        source_data=model.source_text.encode("utf-8"),
     )
     prefix: List[str] = [root_name] if root_name is not None else []
     _add_design_members(
@@ -1088,7 +1189,7 @@ def _last_name_segment(reference_text: str) -> str:
     return re.split(r"::|\.", reference_text)[-1]
 
 
-def _display_name(element: SysMLElement) -> Optional[str]:
+def display_name(element: SysMLElement) -> Optional[str]:
     """
     The element name, or for an anonymous redefinition, the feature it
     redefines (`part :>> stations` is named `stations`).
@@ -1156,9 +1257,9 @@ def _add_design_members(
                 enclosing_node=enclosing_node,
             )
         elif isinstance(member_, SysMLElement):
-            display_name = _display_name(member_)
-            if display_name is not None:
-                element_segments = qualified_prefix + [display_name]
+            element_name = display_name(member_)
+            if element_name is not None:
+                element_segments = qualified_prefix + [element_name]
             else:
                 element_segments = qualified_prefix + [
                     f"anonymous_{member_.kind}_{member_.span.line_start}"
@@ -1195,6 +1296,9 @@ def _add_design_members(
                     container=container,
                     span=member_.span,
                     source_text=member_.source_text,
+                    traced_version=_read_traced_version(
+                        member_.members, member_.span, state.file_path
+                    ),
                 )
             )
         elif isinstance(member_, SysMLVerify):
@@ -1208,6 +1312,9 @@ def _add_design_members(
                     container=container,
                     span=member_.span,
                     source_text=member_.source_text,
+                    traced_version=_read_traced_version(
+                        member_.members, member_.span, state.file_path
+                    ),
                 )
             )
 
@@ -1245,10 +1352,15 @@ def _create_design_node(
         element.short_name if element.short_name is not None else qualified_name
     )
     uid = _unique_uid(_sanitize_uid(base_uid), state)
+    item_version = _read_item_version(element, state.file_path)
 
     fields: List[SDocNodeField] = [_single_line_field(UID_FIELD, uid)]
     if element.name is not None:
         fields.append(_single_line_field(TITLE_FIELD, element.name))
+    if item_version is not None:
+        fields.append(
+            _single_line_field(ITEM_VERSION_FIELD, str(item_version.version))
+        )
     element_kind = (
         f"{element.kind} def" if element.is_definition else element.kind
     )
@@ -1282,6 +1394,10 @@ def _create_design_node(
         element.member_span if element.member_span is not None else element.span
     )
     node_data.set_member_offset(node, member_span.byte_start)
+    node_data.set_item_version(node, item_version)
+    node_data.set_computed_hash(
+        node, versioning.element_hash(state.source_data, element, member_span)
+    )
     state.nodes_by_path.append((element_segments, node))
     state.elements_by_node.append((node, element))
     return node
@@ -1402,13 +1518,14 @@ def _resolve_design_relations(state: _DesignBuildState) -> None:
                 f"'{relation_.role.lower()}' statement must be inside an "
                 "element or name the element with 'by'."
             )
-        target_node.relations.append(
-            ParentReqReference(
-                parent=target_node,
-                ref_uid=relation_.requirement_uid,
-                role=relation_.role,
-            )
+        reference = ParentReqReference(
+            parent=target_node,
+            ref_uid=relation_.requirement_uid,
+            role=relation_.role,
         )
+        node_data.set_traced_version(reference, relation_.traced_version)
+        node_data.set_statement_offset(reference, relation_.span.byte_start)
+        target_node.relations.append(reference)
 
     for node_, lines_ in satisfied_lines.values():
         field_ = _content_field(SATISFIED_BY_PATH_FIELD, "\n".join(lines_))

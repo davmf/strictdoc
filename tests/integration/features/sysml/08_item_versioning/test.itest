@@ -1,0 +1,35 @@
+#
+# Item versioning: SysMLFormat(item_versioning=True).
+#
+# - SYS-1 traces STK-1 at version 2, but STK-1 is at version 3: suspect.
+# - SYS-2 has a stored content hash that does not match its text.
+# - The pump usage satisfies SYS-2 at version 3, but SYS-2 is at version 4.
+# - The other items and traces are current and give no warning.
+#
+# StrictDoc prints each issue as a warning and shows it on the node.
+#
+
+RUN: %strictdoc export %S --formats=html --output-dir %T --config %S/strictdoc_config.py | filecheck %s --dump-input=fail
+CHECK-DAG: warning: Suspect trace to SYS-2: traced version 3, current version 4. (Design::Pump::pump, design.sysml:13)
+CHECK-DAG: warning: Suspect trace to STK-1: traced version 2, current version 3. (SYS-1, system.sysml:2)
+CHECK-DAG: warning: The content changed after version 4, but the version was not bumped. (SYS-2, system.sysml:9)
+CHECK: Export completed.
+
+# Exactly these three warnings.
+RUN: %strictdoc export %S --formats=html --output-dir %T --config %S/strictdoc_config.py | grep -c "^warning:" | filecheck %s --dump-input=fail --check-prefix CHECK-COUNT
+CHECK-COUNT: {{^}}3{{$}}
+
+RUN: %cat %T/html/%THIS_TEST_FOLDER/system.html | filecheck %s --dump-input=fail --check-prefix CHECK-SYSTEM-HTML
+CHECK-SYSTEM-HTML: System requirements
+CHECK-SYSTEM-HTML: Document has 2 issues.
+CHECK-SYSTEM-HTML-DAG: ITEM_VERSION
+CHECK-SYSTEM-HTML-DAG: Suspect trace to STK-1: traced version 2, current version 3.
+CHECK-SYSTEM-HTML-DAG: The content changed after version 4, but the version was not bumped.
+
+RUN: %cat %T/html/%THIS_TEST_FOLDER/design.html | filecheck %s --dump-input=fail --check-prefix CHECK-DESIGN-HTML
+CHECK-DESIGN-HTML: Design
+CHECK-DESIGN-HTML-DAG: ITEM_VERSION
+CHECK-DESIGN-HTML-DAG: Suspect trace to SYS-2: traced version 3, current version 4.
+
+# The export does not write any file to the input tree.
+RUN: test ! -f %S/StrictDocVersioning.sysml

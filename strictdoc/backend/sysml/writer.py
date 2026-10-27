@@ -9,7 +9,9 @@ The layout follows the Halcyon conventions document:
 - blank lines between top-level blocks of a package body (doc comments,
   imports, nested packages, requirements, dependencies), but not inside a
   requirement body;
-- attributes and the require constraint directly after the statement.
+- attributes and the require constraint directly after the statement;
+- the item version, if any, as the first line of a requirement body, and the
+  traced version, if any, in the body of a dependency (see versioning.py).
 
 Reading a canonical file and writing it back produces identical text.
 
@@ -27,13 +29,26 @@ from strictdoc.backend.sdoc.models.document import SDocDocument
 from strictdoc.backend.sdoc.models.node import SDocNode
 from strictdoc.backend.sdoc.models.reference import ParentReqReference
 from strictdoc.backend.sysml import node_data
+from strictdoc.backend.sysml.versioning import (
+    ITEM_VERSION_FIELD,
+    content_hash,
+    item_version_text,
+    traced_version_text,
+)
 from strictdoc.core.document_meta import DocumentMeta
 from strictdoc.helpers.cast import assert_cast
 from strictdoc.helpers.exception import StrictDocException
 
 _INDENT = "    "
 _IDENTIFIER_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
-_RESERVED_FIELD_TITLES = {"UID", "TITLE", "STATEMENT", "CONSTRAINT", "MID"}
+_RESERVED_FIELD_TITLES = {
+    "UID",
+    "TITLE",
+    "STATEMENT",
+    "CONSTRAINT",
+    "MID",
+    ITEM_VERSION_FIELD,
+}
 
 
 class SysMLWriter:
@@ -100,9 +115,7 @@ class SysMLWriter:
                 continue
             if child_.node_type == "REQUIREMENT":
                 blocks.append(
-                    "\n".join(
-                        SysMLWriter._requirement_lines(child_, pad, document)
-                    )
+                    "\n".join(SysMLWriter._requirement_lines(child_, pad))
                 )
                 dependency_lines.extend(
                     SysMLWriter._dependency_lines(child_, pad, document)
@@ -118,6 +131,17 @@ class SysMLWriter:
         if len(dependency_lines) > 0:
             blocks.append("\n".join(dependency_lines))
         return blocks
+
+    @staticmethod
+    def requirement_hash(requirement: SDocNode) -> str:
+        """
+        The content hash of a requirement: the hash of its canonical text
+        without the item version line.
+        """
+        lines = SysMLWriter._requirement_lines(
+            requirement, "", include_version=False
+        )
+        return content_hash("\n".join(lines))
 
     @staticmethod
     def _section_block(
@@ -141,7 +165,7 @@ class SysMLWriter:
     def _requirement_lines(
         requirement: SDocNode,
         pad: str,
-        document: SDocDocument,  # noqa: ARG004
+        include_version: bool = True,
     ) -> List[str]:
         head = "requirement"
         uid = _field_text(requirement, "UID")
@@ -152,6 +176,10 @@ class SysMLWriter:
             head += f" {_quote_name(title)}"
         body_pad = pad + _INDENT
         lines = [f"{pad}{head} {{"]
+
+        item_version = node_data.get_item_version(requirement)
+        if include_version and item_version is not None:
+            lines.append(body_pad + item_version_text(item_version))
 
         statement = _field_text(requirement, "STATEMENT")
         if statement is not None:
@@ -236,10 +264,17 @@ class SysMLWriter:
                 if node_data.get_derivation_prefix(document)
                 else ""
             )
-            lines.append(
+            head = (
                 f"{pad}{prefix}dependency from {_quote_name(child_uid)} "
-                f"to {_quote_name(relation_.ref_uid)};"
+                f"to {_quote_name(relation_.ref_uid)}"
             )
+            traced_version = node_data.get_traced_version(relation_)
+            if traced_version is None:
+                lines.append(head + ";")
+                continue
+            lines.append(head + " {")
+            lines.append(pad + _INDENT + traced_version_text(traced_version))
+            lines.append(pad + "}")
         return lines
 
 

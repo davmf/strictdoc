@@ -65,10 +65,11 @@ from strictdoc.backend.sdoc_source_code.models.source_file_info import (
     SourceFileTraceabilityInfo,
 )
 from strictdoc.backend.sysml import editor as sysml_editor
-from strictdoc.backend.sysml import node_data
+from strictdoc.backend.sysml import node_data, version_tracking
 from strictdoc.backend.sysml.editor import SysMLEditError
 from strictdoc.backend.sysml.model import SysMLElement
 from strictdoc.backend.sysml.parser import SysMLParser
+from strictdoc.backend.sysml.sysml_format import versioning_format_for_document
 from strictdoc.core.analyzers.document_stats import DocumentTreeStats
 from strictdoc.core.analyzers.document_uid_analyzer import DocumentUIDAnalyzer
 from strictdoc.core.document_meta import DocumentMeta
@@ -2672,7 +2673,15 @@ def create_main_router(
         the original text is written back and the current index is kept.
         """
         assert document.meta is not None
+        original_text = _sysml_read_file_text(document)
+        sysml_format = versioning_format_for_document(project_config, document)
         try:
+            if sysml_format is not None:
+                new_text = sysml_editor.apply_versioning(
+                    original_text,
+                    new_text,
+                    sysml_format.target_version_lookup(),
+                )
             sysml_editor.validate_text(
                 new_text,
                 file_path=document.meta.input_doc_full_path,
@@ -2681,7 +2690,8 @@ def create_main_router(
         except SysMLEditError as exception_:
             return exception_.to_print_message()
 
-        original_text = _sysml_read_file_text(document)
+        if sysml_format is not None:
+            sysml_format.ensure_library(project_config)
         _sysml_write_file_text(document, new_text)
         try:
             traceability_index = TraceabilityIndexBuilder.create(
@@ -2981,6 +2991,60 @@ def create_main_router(
                 "Content-Type": "text/vnd.turbo-stream.html",
             },
         )
+
+    @write_router.post("/actions/sysml/review_traces", response_class=Response)
+    def sysml__review_traces(
+        node_mid: str,
+        context_document_mid: str,  # noqa: ARG001
+    ) -> Response:
+        """
+        Pin each suspect trace of a node to the current version of its
+        target, then rebuild the index and render the document again.
+        """
+        node = export_action.traceability_index.get_node_by_mid_weak(
+            MID(node_mid)
+        )
+        if not isinstance(node, SDocNode):
+            raise HTTPException(status_code=404, detail="Node not found.")
+        document = assert_cast(node.get_document(), SDocDocument)
+        assert document.meta is not None
+        sysml_format = versioning_format_for_document(project_config, document)
+        if sysml_format is None:
+            raise HTTPException(
+                status_code=403,
+                detail="Item versioning is not enabled for this document.",
+            )
+        target_version = sysml_format.target_version_lookup()
+        document_full_path = document.meta.input_doc_full_path
+
+        if node_data.is_design_document(document):
+            versions_by_offset: Dict[int, int] = {}
+            for suspect_ in version_tracking.suspect_traces(
+                node, target_version
+            ):
+                offset = node_data.get_statement_offset(suspect_.reference)
+                if offset is not None and suspect_.current_version is not None:
+                    versions_by_offset[offset] = suspect_.current_version
+            file_text = _sysml_read_file_text(document)
+            try:
+                new_text = sysml_editor.review_traces(
+                    file_text, versions_by_offset
+                )
+            except SysMLEditError as exception_:
+                raise HTTPException(
+                    status_code=409, detail=exception_.to_print_message()
+                ) from exception_
+            save_error = _sysml_save_and_rebuild(document, new_text)
+            if save_error is not None:
+                raise HTTPException(status_code=422, detail=save_error)
+        else:
+            version_tracking.review_traces(node, target_version)
+            write_document_to_file(document)
+            export_action.traceability_index = TraceabilityIndexBuilder.create(
+                project_config=project_config,
+                parallelizer=parallelizer,
+            )
+        return _sysml_render_updated_document(document_full_path)
 
     @write_router.delete(
         "/actions/document/delete_requirement",

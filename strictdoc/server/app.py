@@ -16,6 +16,9 @@ from starlette.responses import Response
 
 from strictdoc import __version__
 from strictdoc.core.project_config import ProjectConfig
+from strictdoc.features.project_actions.router import (
+    create_project_actions_router,
+)
 from strictdoc.helpers.coverage import register_code_coverage_hook
 from strictdoc.helpers.deprecation_engine import DEPRECATION_ENGINE
 from strictdoc.helpers.pickle import pickle_load
@@ -123,6 +126,10 @@ def create_app(*, project_config: ProjectConfig) -> FastAPI:
 
     lock_manager = HierarchicalRWLockManager()
 
+    # Included first, because the main router ends with a catch-all route.
+    app.include_router(
+        create_project_actions_router(project_config=project_config, app=app)
+    )
     app.include_router(
         create_other_router(
             project_config=project_config,

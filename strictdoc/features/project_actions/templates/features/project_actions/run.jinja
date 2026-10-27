@@ -1,0 +1,68 @@
+{%- set run_ = view_object.last_run -%}
+<section
+  class="project_actions__run"
+  data-run-id="{{ run_.run_id }}"
+  data-run-state="{{ run_.state }}"
+  data-line-count="{{ run_.get_line_count() }}"
+  data-testid="project-actions-run"
+>
+  <header class="project_actions__run_header">
+    <h2>{{ run_.action.title }}</h2>
+    <span
+      class="project_actions__state"
+      data-state="{{ run_.state }}"
+      data-testid="project-actions-run-state"
+    >{{ run_.state }}</span>
+    {%- if run_.exit_code is not none -%}
+    <span data-testid="project-actions-run-exit-code">exit code {{ run_.exit_code }}</span>
+    {%- endif -%}
+    <span>{{ "%.1f" | format(run_.get_duration_seconds()) }} s</span>
+    {%- if run_.state == "running" -%}
+    <form method="POST" action="/project_actions/cancel">
+      <button
+        class="action_button"
+        type="submit"
+        data-testid="project-actions-cancel"
+      >Cancel</button>
+    </form>
+    {%- endif -%}
+  </header>
+
+  <code class="project_actions__command">{{ view_object.render_command(run_.argv) }}</code>
+
+  {%- if run_.error_message is not none -%}
+  <div class="project_actions__message" data-testid="project-actions-run-error">
+    {{ run_.error_message }}
+  </div>
+  {%- endif -%}
+
+  {%- if run_.dropped_lines > 0 -%}
+  <div class="project_actions__note">
+    The first {{ run_.dropped_lines }} lines are not shown.
+  </div>
+  {%- endif -%}
+  <pre
+    class="project_actions__log"
+    data-testid="project-actions-log"
+  >{% for line_ in run_.lines %}{{ line_ }}
+{% endfor %}</pre>
+
+  {%- if run_.output_files | length > 0 -%}
+  <div class="project_actions__outputs" data-testid="project-actions-outputs">
+    {%- for path_ in run_.output_files -%}
+      {%- set kind_ = view_object.get_output_kind(path_) -%}
+      {%- set url_ = view_object.get_output_url(run_, path_) -%}
+      <figure class="project_actions__output" data-output-kind="{{ kind_ }}" data-testid="project-actions-output">
+        <figcaption><a href="{{ url_ }}" target="_blank">{{ path_ }}</a></figcaption>
+        {%- if kind_ == "image" -%}
+        <img src="{{ url_ }}" alt="{{ path_ }}"/>
+        {%- elif kind_ == "video" -%}
+        <video src="{{ url_ }}" controls></video>
+        {%- elif kind_ == "html" -%}
+        <iframe src="{{ url_ }}" title="{{ path_ }}"></iframe>
+        {%- endif -%}
+      </figure>
+    {%- endfor -%}
+  </div>
+  {%- endif -%}
+</section>

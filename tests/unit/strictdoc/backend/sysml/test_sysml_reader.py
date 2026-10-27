@@ -1,6 +1,7 @@
 import pytest
 
 from strictdoc.backend.sdoc.models.node import SDocNode
+from strictdoc.backend.sysml import node_data
 from strictdoc.backend.sysml.reader import SysMLReader
 from strictdoc.helpers.exception import StrictDocException
 
@@ -438,3 +439,32 @@ package 'Design' {
         "    * - Name",
         "    * - \\-",
     ]
+
+
+def test_16_design_node_records_type_lineage_within_the_file():
+    text = """\
+package 'Scenarios' {
+    part def Scenario;
+    part def BaseSteadyStat :> Scenario;
+    part def Instrument;
+    part baseSteady : BaseSteadyStat;
+    part instrument : Instrument;
+    part external : Library::Other;
+}
+"""
+    document = SysMLReader.read_from_string(
+        text, file_path="design.sysml", relative_path="design.sysml"
+    )
+    lineages = {
+        node_.reserved_title: node_data.get_type_lineage(node_)
+        for node_ in _nodes_of_type(document, "PART")
+        + _nodes_of_type(document, "PART_DEF")
+    }
+    assert lineages == {
+        "Scenario": [],
+        "BaseSteadyStat": ["Scenario"],
+        "Instrument": [],
+        "baseSteady": ["BaseSteadyStat", "Scenario"],
+        "instrument": ["Instrument"],
+        "external": ["Other"],
+    }

@@ -5920,6 +5920,177 @@ To use the feature with a command-line interface:
 [[/SECTION]]
 
 [[SECTION]]
+MID: 6c7ac522dd20473994c22c52f14a9d70
+UID: SECTION-UG-Project-actions
+TITLE: Project actions (experimental)
+
+[TEXT]
+MID: 4dbcd5bbd63744eb87bf23029f75702b
+STATEMENT: >>>
+Project actions let the web server run commands that a project declares,
+for example a simulation or a test script. The run screen streams the
+output of a command and shows the files that it writes. When the command
+finishes, StrictDoc rebuilds the project, so new test results appear on the
+requirements without a restart.
+
+.. warning::
+
+    An action runs project code with the permissions of the server process.
+    By default, the server runs actions only when it listens on a loopback
+    host (``127.0.0.1``, ``localhost`` or ``::1``).
+<<<
+
+[[SECTION]]
+MID: c22c0d8e56f34ff2934ebf7f318e9490
+TITLE: Declaring actions
+
+[TEXT]
+MID: 9e3ab0855f4b44ddb38a5c10b10057ba
+STATEMENT: >>>
+Activate the ``PROJECT_ACTIONS`` feature and list the actions in
+``strictdoc_config.py``:
+
+.. code:: python
+
+    import sys
+
+    from strictdoc.core.project_config import ProjectConfig
+    from strictdoc.features.project_actions.project_action import (
+        ProjectAction,
+        ProjectActionParameter,
+    )
+
+
+    def create_config() -> ProjectConfig:
+        return ProjectConfig(
+            project_features=["PROJECT_ACTIONS"],
+            project_actions=[
+                ProjectAction(
+                    handle="simulate",
+                    title="Simulate",
+                    argv=[sys.executable, "tools/run.py", "simulate"],
+                    parameters=[
+                        ProjectActionParameter(
+                            name="scenario",
+                            flag="--scenario",
+                            kind="choice",
+                            choices=["baseBatch", "baseSteady"],
+                            required=True,
+                        ),
+                        ProjectActionParameter(
+                            name="replications",
+                            flag="--replications",
+                            kind="integer",
+                            default=5,
+                        ),
+                    ],
+                    outputs=["build/plots/*.svg"],
+                ),
+            ],
+        )
+
+An action has these properties:
+
+- ``handle``: a ``snake_case`` identifier.
+- ``title`` and an optional ``description``, shown on the run screen.
+- ``argv``: the command and its fixed arguments. ``sys.executable`` is the
+  Python interpreter that runs StrictDoc.
+- ``parameters``: the form fields of the action.
+- ``outputs``: globs, relative to the project root, of the files that the
+  command writes.
+- ``sysml_binding``: optional, see below.
+
+A parameter has a ``name``, a command line ``flag`` and a ``kind``:
+``choice``, ``integer``, ``float``, ``boolean`` or ``string``. A choice
+parameter needs ``choices``. The ``default`` fills the form field. A
+required parameter must have a value.
+
+StrictDoc builds the command line from ``argv`` and one ``flag value`` pair
+for each parameter with a value, in declaration order. A boolean parameter
+adds only its flag, and only when it is checked. StrictDoc checks each
+value against the kind and the choices of its parameter, and never passes
+the command line through a shell.
+
+The project root is the input path of ``strictdoc server``. The command
+runs in that folder.
+
+To allow runs when the server listens on another host, set
+``allow_remote_project_actions=True`` in the project config.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
+MID: a446d24481504922944faf95c3ad650d
+TITLE: Running actions
+
+[TEXT]
+MID: 56a7df2e278d497d8f8e06f7b7e91df4
+STATEMENT: >>>
+The ``Run`` button in the left navigation bar opens the run screen. It
+lists one form for each action. Submit a form to start its action.
+
+StrictDoc runs one action at a time. While an action runs, the run screen
+shows its output as it arrives, and a ``Cancel`` button. When the command
+finishes, the screen shows:
+
+- The state: ``succeeded``, ``failed``, ``cancelled`` or ``error``. The
+  state is ``error`` when StrictDoc cannot start the command.
+- The exit code and the duration.
+- The files that match ``outputs`` and that the run created or changed.
+  SVG, PNG, JPEG and GIF files show as images, MP4 and WebM files as videos
+  and HTML files in a frame. Other files show as links.
+
+StrictDoc keeps the output and the state of the last run in memory until
+the server stops.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
+MID: b2cdbd237ec6453fafeaf23ea5523096
+TITLE: Actions on SysML design elements
+
+[TEXT]
+MID: b00688e788844556a3aeec257779d140
+STATEMENT: >>>
+An action can have a ``sysml_binding``. Each matching element of a SysML
+design package then has a run button on its node. The button opens the
+run screen with the element name in the bound parameter.
+
+.. code:: python
+
+    from strictdoc.features.project_actions.project_action import (
+        ProjectActionSysMLBinding,
+    )
+
+    ProjectAction(
+        ...,
+        sysml_binding=ProjectActionSysMLBinding(
+            element_kind="part",
+            specializes="Scenario",
+            parameter="scenario",
+        ),
+    )
+
+An element matches when:
+
+- Its keyword is ``element_kind``, for example ``part`` for a usage or
+  ``part def`` for a definition.
+- Its type, or a type that its type specialises, is named ``specializes``.
+  StrictDoc follows ``:`` and ``:>`` through the definitions of the same
+  file. With ``part def Steady :> Scenario;`` and ``part steady : Steady;``,
+  ``steady`` matches ``Scenario``.
+
+The bound parameter can still be a ``choice``. StrictDoc then also checks
+the element name against the choices.
+<<<
+
+[[/SECTION]]
+
+[[/SECTION]]
+
+[[SECTION]]
 MID: 0a4573d025f14e61b84aad14349d42f4
 UID: SECTION-UG-HTML2PDF-document-generator
 TITLE: HTML2PDF document generator

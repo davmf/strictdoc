@@ -16,6 +16,9 @@ and the shared model classes stay unchanged.
   from. The editor uses it to detect changes on disk.
 - Member offset: per design node, the byte offset of its SysML element in
   the file. The editor uses it to find the element again.
+- Type lineage: per design node, the names of the types that its element is
+  typed by or specialises, followed transitively within the file. Project
+  actions use it to find the elements that they are bound to.
 """
 
 import hashlib
@@ -33,6 +36,7 @@ _DERIVATION_PREFIX_KEY = "ng_sysml_derivation_prefix"
 _DIAGRAM_KEY = "ng_sysml_diagram"
 _SOURCE_HASH_KEY = "ng_sysml_source_hash"
 _MEMBER_OFFSET_KEY = "ng_sysml_member_offset"
+_TYPE_LINEAGE_KEY = "ng_sysml_type_lineage"
 
 
 def set_attribute_types(
@@ -97,6 +101,17 @@ def set_member_offset(node: SDocNode, byte_offset: int) -> None:
 def get_member_offset(node: SDocNode) -> Optional[int]:
     value: Any = getattr(node, _MEMBER_OFFSET_KEY, None)
     return value if isinstance(value, int) else None
+
+
+def set_type_lineage(node: SDocNode, lineage: List[str]) -> None:
+    setattr(node, _TYPE_LINEAGE_KEY, list(lineage))
+
+
+def get_type_lineage(node: SDocNode) -> List[str]:
+    value: Any = getattr(node, _TYPE_LINEAGE_KEY, None)
+    if value is None:
+        return []
+    return list(value)
 
 
 def is_design_document(document: SDocDocument) -> bool:

@@ -64,6 +64,10 @@ from strictdoc.export.html.renderers.html_fragment_writer import (
 )
 from strictdoc.export.html.renderers.link_renderer import LinkRenderer
 from strictdoc.export.html.renderers.markup_renderer import MarkupRenderer
+from strictdoc.features.project_actions.sysml_binding import (
+    BoundProjectAction,
+    find_bound_project_actions,
+)
 from strictdoc.helpers.cast import assert_cast
 from strictdoc.helpers.file_system import file_open_read_utf8
 from strictdoc.helpers.git_client import GitClient
@@ -824,6 +828,14 @@ class DocumentScreenViewObject:
         return isinstance(node, SDocNode) and node_data.is_design_element_node(
             node
         )
+
+    def get_bound_project_actions(
+        self, node: Union[SDocDocument, SDocNode]
+    ) -> List[BoundProjectAction]:
+        """
+        Project actions that a SysML design element offers on its page.
+        """
+        return find_bound_project_actions(self.project_config, node)
 
     def can_edit_node(self, node: Union[SDocDocument, SDocNode]) -> bool:
         return self.traceability_index.can_edit_node(node)

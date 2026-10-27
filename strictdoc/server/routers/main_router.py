@@ -5852,7 +5852,7 @@ def create_main_router(
         except Exception as build_error:  # noqa: BLE001
             return str(build_error)
 
-    def notify_clients_after_file_change() -> None:
+    def rebuild_and_notify_clients() -> Optional[str]:
         build_error = rebuild_index_after_file_change()
         message = "reload" if build_error is None else f"error:{build_error}"
         if build_error is not None:
@@ -5862,6 +5862,14 @@ def create_main_router(
             asyncio.run_coroutine_threadsafe(
                 manager.broadcast(message), event_loop
             )
+        return build_error
+
+    def notify_clients_after_file_change() -> None:
+        rebuild_and_notify_clients()
+
+    # Other routers, e.g. the project actions router, rebuild through the
+    # same path as the document watcher.
+    app.state.rebuild_and_notify_clients = rebuild_and_notify_clients
 
     if project_config.watch_enabled:
         app.state.document_watcher = DocumentWatcher(

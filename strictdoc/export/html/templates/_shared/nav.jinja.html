@@ -77,6 +77,18 @@
   </a>
 {%- endif -%}
 
+{%- if view_object.project_config.is_activated_project_actions() and view_object.project_config.project_actions | length > 0 -%}
+  <a
+    data-link="project-actions"
+    class="nav_button"
+    href="/project_actions"
+    title="Run project actions"
+    data-testid="project-tree-link-project-actions"
+  >
+    {% include "features/project_actions/ico16_run.svg" %}
+  </a>
+{%- endif -%}
+
 {%- set tree_map_feature = view_object.project_config.get_feature(
   "TREE_MAP_SCREEN"
 ) -%}

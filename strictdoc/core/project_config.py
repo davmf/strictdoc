@@ -37,6 +37,10 @@ from strictdoc.commands.server_config import ServerCommandConfig
 from strictdoc.core.environment import SDocRuntimeEnvironment
 from strictdoc.core.feature import Feature
 from strictdoc.core.plugin import StrictDocPlugin
+from strictdoc.features.project_actions.project_action import (
+    ProjectAction,
+    validate_project_actions,
+)
 from strictdoc.helpers.auto_described import auto_described
 from strictdoc.helpers.deprecation_engine import DEPRECATION_ENGINE
 from strictdoc.helpers.exception import StrictDocException
@@ -117,6 +121,8 @@ class ProjectFeature(str, Enum):
 
     MERMAID = "MERMAID"
     NESTOR = "NESTOR"
+
+    PROJECT_ACTIONS = "PROJECT_ACTIONS"
 
     ALL_FEATURES = "ALL_FEATURES"
 
@@ -232,6 +238,12 @@ class ProjectConfig:
         # from its resolved prefix and next available number.
         custom_node_uid_function: Optional[CustomNodeUidFunction] = None,
         formats: Optional[List["Format"]] = None,
+        # Commands that the web UI can run when the PROJECT_ACTIONS feature
+        # is activated. See ProjectAction.
+        project_actions: Optional[List[ProjectAction]] = None,
+        # By default, the server runs project actions only when it listens on
+        # a loopback host. True allows runs from other hosts too.
+        allow_remote_project_actions: bool = False,
         # Reserved for StrictDoc's internal use.
         _config_last_update: Optional[datetime.datetime] = None,
     ) -> None:
@@ -525,6 +537,18 @@ class ProjectConfig:
         # Optional custom CSS path, project-relative. Validated and
         # resolved to an absolute path in validate_and_finalize().
         self.custom_css_path: Optional[str] = custom_css_path
+
+        project_actions_: List[ProjectAction] = (
+            project_actions if project_actions is not None else []
+        )
+        validate_project_actions(project_actions_)
+        self.project_actions: List[ProjectAction] = project_actions_
+
+        assert isinstance(allow_remote_project_actions, bool), (
+            "config: allow_remote_project_actions: "
+            f"must be a True/False value: {allow_remote_project_actions}."
+        )
+        self.allow_remote_project_actions: bool = allow_remote_project_actions
 
         self.config_last_update: Optional[datetime.datetime] = (
             _config_last_update
@@ -1067,6 +1091,18 @@ class ProjectConfig:
             self.is_running_on_server
             and ProjectFeature.SEARCH in self.project_features
         )
+
+    def is_activated_project_actions(self) -> bool:
+        return (
+            self.is_running_on_server
+            and ProjectFeature.PROJECT_ACTIONS in self.project_features
+        )
+
+    def get_project_action(self, handle: str) -> Optional[ProjectAction]:
+        for action_ in self.project_actions:
+            if action_.handle == handle:
+                return action_
+        return None
 
     def is_activated_html2pdf(self) -> bool:
         return ProjectFeature.HTML2PDF in self.project_features

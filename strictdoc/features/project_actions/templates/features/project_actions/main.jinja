@@ -1,0 +1,31 @@
+<div class="main project_actions" data-testid="project-actions-screen">
+
+  {%- if not view_object.runs_allowed -%}
+  <div class="project_actions__message" data-testid="project-actions-remote-disabled">
+    The server listens on {{ view_object.project_config.server_host }}, which
+    is not a loopback host. Running actions is disabled. Set
+    allow_remote_project_actions=True in the project config to allow it.
+  </div>
+  {%- endif -%}
+
+  {%- if view_object.error_message is not none -%}
+  <div class="project_actions__message" data-testid="project-actions-error">
+    {{ view_object.error_message }}
+  </div>
+  {%- endif -%}
+
+  {%- if view_object.last_run is not none -%}
+    {% include "features/project_actions/run.jinja" %}
+  {%- endif -%}
+
+  {%- if view_object.project_config.project_actions | length == 0 -%}
+  <div class="project_actions__message" data-testid="project-actions-empty">
+    The project config declares no actions.
+  </div>
+  {%- endif -%}
+
+  {%- for action_ in view_object.get_actions() -%}
+    {% include "features/project_actions/action_form.jinja" %}
+  {%- endfor -%}
+
+</div>

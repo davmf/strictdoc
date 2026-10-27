@@ -73,6 +73,15 @@
     data-testid="node-edit-action-disabled"
     {% endif %}
   >{% include "icons/ico16_edit.svg" %}</a>
+  {# PROJECT ACTIONS: actions bound to a SysML design element. #}
+  {% for bound_action_ in view_object.get_bound_project_actions(sdoc_entity) %}
+  <a
+    href="{{ bound_action_.get_url() }}"
+    class="action_button"
+    title="{{ bound_action_.action.title }}: {{ bound_action_.element_name }}"
+    data-testid="node-project-action-{{ bound_action_.action.handle }}"
+  >{% include "features/project_actions/ico16_run.svg" %}</a>
+  {% endfor %}
   <a
     {% if view_object.can_delete_node(sdoc_entity) %}
     href="/actions/document/delete_{{ sdoc_entity.get_type_string() }}?node_id={{ sdoc_entity.reserved_mid }}&context_document_mid={{ view_object.document.reserved_mid }}"

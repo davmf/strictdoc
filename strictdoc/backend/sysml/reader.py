@@ -122,7 +122,11 @@ DESIGN_TAGS: Dict[Tuple[str, bool], str] = {
 
 # Part of the pickle cache key. Bump it when the reader output changes, so
 # that cached documents built by an older reader are not reused.
-SYSML_CACHE_KIND = "sysml-reader-9"
+SYSML_CACHE_KIND = "sysml-reader-10"
+
+# Specialisation operators that name a type of the element. Redefinition
+# (`:>>`) and subsetting name features, not types.
+TYPING_OPERATORS = (":", ":>", "specializes", "defined by")
 
 
 class SysMLReader:
@@ -773,6 +777,10 @@ class _DesignBuildState:
     )
     used_uids: Set[str] = field(default_factory=set)
     pending_relations: List[_PendingRelation] = field(default_factory=list)
+    # (node, element) for every design node, to resolve type lineages.
+    elements_by_node: List[Tuple[SDocNode, SysMLElement]] = field(
+        default_factory=list
+    )
 
 
 def _build_design_document(
@@ -824,6 +832,7 @@ def _build_design_document(
         enclosing_node=None,
     )
     _resolve_design_relations(state)
+    _resolve_design_type_lineages(state)
     node_data.set_source_hash(document, model.source_text)
     return document
 
@@ -1274,7 +1283,44 @@ def _create_design_node(
     )
     node_data.set_member_offset(node, member_span.byte_start)
     state.nodes_by_path.append((element_segments, node))
+    state.elements_by_node.append((node, element))
     return node
+
+
+def _direct_type_names(element: SysMLElement) -> List[str]:
+    """The last name segment of each type that an element is typed by or specialises."""
+    return [
+        _last_name_segment(target_)
+        for specialization_ in element.specializations
+        if specialization_.operator in TYPING_OPERATORS
+        for target_ in specialization_.targets
+    ]
+
+
+def _resolve_design_type_lineages(state: _DesignBuildState) -> None:
+    """
+    Store on each design node the names of its types, transitively.
+
+    Only definitions in the same file are followed. For `part baseSteady :
+    BaseSteadyStat` and `part def BaseSteadyStat :> Scenario`, the lineage
+    of baseSteady is [BaseSteadyStat, Scenario].
+    """
+    direct_types_by_definition: Dict[str, List[str]] = {}
+    for _, element_ in state.elements_by_node:
+        if element_.is_definition and element_.name is not None:
+            direct_types_by_definition.setdefault(element_.name, []).extend(
+                _direct_type_names(element_)
+            )
+    for node_, element_ in state.elements_by_node:
+        lineage: List[str] = []
+        pending = _direct_type_names(element_)
+        while len(pending) > 0:
+            type_name = pending.pop(0)
+            if type_name in lineage:
+                continue
+            lineage.append(type_name)
+            pending.extend(direct_types_by_definition.get(type_name, []))
+        node_data.set_type_lineage(node_, lineage)
 
 
 def _resolve_design_path(

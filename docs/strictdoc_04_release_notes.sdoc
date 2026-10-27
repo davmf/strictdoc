@@ -80,6 +80,14 @@ element has a ``Tables`` tab for its ``DETAILS`` and ``MEMBERS`` rows and a
 ``Source`` tab for its SysML text. The ``Edit SysML source`` action of the
 document edits the whole file. StrictDoc checks the syntax, the document
 and the requirement UIDs before it keeps a change.
+
+6\) Added the experimental ``PROJECT_ACTIONS`` feature. A project declares
+commands with typed parameters in ``strictdoc_config.py``, and the web
+server runs them from a ``Run`` screen. The screen streams the output and
+shows the files that the command writes. StrictDoc then rebuilds the
+project. An action can be bound to SysML design elements, for example to
+every part typed by a ``Scenario``, and the element node then has a run
+button.
 <<<
 
 [[/SECTION]]

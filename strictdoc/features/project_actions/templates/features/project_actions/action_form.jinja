@@ -1,0 +1,78 @@
+<section
+  class="project_actions__action"
+  {% if action_ is sameas view_object.selected_action %}data-selected{% endif %}
+  data-testid="project-action-{{ action_.handle }}"
+>
+  <form method="POST" action="/project_actions/run">
+    <input type="hidden" name="action" value="{{ action_.handle }}"/>
+    {%- if action_ is sameas view_object.selected_action and view_object.bound_element is not none -%}
+    <input type="hidden" name="element" value="{{ view_object.bound_element }}"/>
+    {%- endif -%}
+    <header class="project_actions__action_header">
+      <h2>{{ action_.title }}</h2>
+      <button
+        class="action_button"
+        type="submit"
+        {% if view_object.is_run_in_progress() or not view_object.runs_allowed %}disabled{% endif %}
+        data-testid="project-action-{{ action_.handle }}-submit"
+      >{% include "features/project_actions/ico16_run.svg" %}Run</button>
+    </header>
+    {%- if action_.description is not none -%}
+    <p class="project_actions__description">{{ action_.description }}</p>
+    {%- endif -%}
+    {%- if action_.parameters | length > 0 -%}
+    <div class="project_actions__parameters">
+      {%- for parameter_ in action_.parameters -%}
+        {%- set field_id_ = action_.handle ~ "__" ~ parameter_.name -%}
+        {%- set value_ = view_object.get_value(action_, parameter_) -%}
+        {%- set is_bound_ = view_object.is_bound_parameter(action_, parameter_) -%}
+        {%- set error_ = view_object.get_error(action_, parameter_) -%}
+        <label for="{{ field_id_ }}">{{ parameter_.get_title() }}</label>
+        <div class="project_actions__field">
+        {%- if parameter_.kind == "choice" -%}
+          <select
+            id="{{ field_id_ }}"
+            name="{{ parameter_.name }}"
+            {% if is_bound_ %}disabled{% endif %}
+            data-testid="project-action-{{ action_.handle }}-{{ parameter_.name }}"
+          >
+            {%- if not parameter_.required -%}
+            <option value=""{% if value_ == "" %} selected{% endif %}></option>
+            {%- endif -%}
+            {%- for choice_ in parameter_.choices -%}
+            <option value="{{ choice_ }}"{% if value_ == choice_ %} selected{% endif %}>{{ choice_ }}</option>
+            {%- endfor -%}
+          </select>
+          {%- if is_bound_ -%}
+          <input type="hidden" name="{{ parameter_.name }}" value="{{ value_ }}"/>
+          {%- endif -%}
+        {%- elif parameter_.kind == "boolean" -%}
+          <input
+            type="checkbox"
+            id="{{ field_id_ }}"
+            name="{{ parameter_.name }}"
+            value="true"
+            {% if value_ == "true" %}checked{% endif %}
+            data-testid="project-action-{{ action_.handle }}-{{ parameter_.name }}"
+          />
+        {%- else -%}
+          <input
+            type="text"
+            id="{{ field_id_ }}"
+            name="{{ parameter_.name }}"
+            value="{{ value_ }}"
+            {% if parameter_.kind in ("integer", "float") %}inputmode="decimal"{% endif %}
+            {% if is_bound_ %}readonly{% endif %}
+            data-testid="project-action-{{ action_.handle }}-{{ parameter_.name }}"
+          />
+        {%- endif -%}
+        <code class="project_actions__flag">{{ parameter_.flag }}</code>
+        {%- if error_ is not none -%}
+          <div class="project_actions__field_error" data-testid="project-action-{{ action_.handle }}-{{ parameter_.name }}-error">{{ error_ }}</div>
+        {%- endif -%}
+        </div>
+      {%- endfor -%}
+    </div>
+    {%- endif -%}
+  </form>
+</section>

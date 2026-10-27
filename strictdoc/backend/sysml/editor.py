@@ -14,6 +14,11 @@ The web UI edits a design element in one of two ways:
 The whole file can also be replaced. Text outside the edited ranges stays
 the same byte for byte, including comments and layout.
 
+With item versioning, apply_versioning() runs on the new text before it is
+saved. It bumps the item version of each changed design element and pins
+each new satisfy or verify statement to the version of its requirement.
+review_traces() pins given statements to new versions.
+
 Every edit returns the new file text and parses it again to check the edit.
 validate_text() then reads the text as a StrictDoc document. The caller
 writes the file and rebuilds the traceability index.
@@ -21,7 +26,7 @@ writes the file and rebuilds the traceability index.
 
 import re
 from dataclasses import dataclass, field
-from typing import Dict, FrozenSet, List, Optional, Tuple, Union
+from typing import Callable, Dict, FrozenSet, List, Optional, Tuple, Union
 
 from strictdoc.backend.sysml.grammar import SYSML_GRAMMAR
 from strictdoc.backend.sysml.model import (
@@ -30,17 +35,32 @@ from strictdoc.backend.sysml.model import (
     SysMLMember,
     SysMLModel,
     SysMLPackage,
+    SysMLSatisfy,
     SysMLSpan,
+    SysMLVerify,
 )
 from strictdoc.backend.sysml.parser import SysMLParseError, SysMLParser
 from strictdoc.backend.sysml.reader import (
+    DESIGN_TAGS,
     SysMLReader,
+    display_name,
     specialization_properties,
     split_units,
+)
+from strictdoc.backend.sysml.versioning import (
+    ItemVersion,
+    SysMLVersioningError,
+    element_hash,
+    find_item_version,
+    find_traced_version,
+    item_version_text,
+    read_item_version,
+    traced_version_text,
 )
 from strictdoc.helpers.exception import StrictDocException
 
 SysMLDeclaration = Union[SysMLElement, SysMLAttribute]
+SysMLTrace = Union[SysMLSatisfy, SysMLVerify]
 
 KIND_COLUMN = "Kind"
 MODIFIERS_COLUMN = "Modifiers"
@@ -358,6 +378,134 @@ def apply_table_edits(
     return new_text
 
 
+def apply_versioning(
+    old_text: str,
+    new_text: str,
+    target_version: Callable[[str], Optional[int]],
+) -> str:
+    """
+    Version the design elements and pin the traces of new_text.
+
+    old_text is the file before the edit. Elements and statements are
+    matched by qualified name and position among equal names.
+
+    - A changed element with an item version gets the next version and the
+      new content hash. If the edit changed the version by hand, that
+      version is kept.
+    - A new or changed element without an item version gets version 1.
+    - A satisfy or verify statement that is new and has no traced version is
+      pinned to target_version() of its requirement, if that is not None.
+
+    Unchanged elements and old statements stay the same.
+    """
+    old_model = _parse_or_none(old_text)
+    new_model = _parse(new_text)
+    old_data = old_text.encode("utf-8")
+    data = new_text.encode("utf-8")
+    old_items: Dict[str, Tuple[SysMLElement, str]] = {}
+    if old_model is not None:
+        for key_, element_ in _design_items(old_model.members):
+            old_items[key_] = (
+                element_,
+                element_hash(old_data, element_, _member_span(element_)),
+            )
+
+    edits: List[_Edit] = []
+    for key_, element_ in _design_items(new_model.members):
+        current_hash = element_hash(data, element_, _member_span(element_))
+        current = _read_item_version(element_)
+        old_element, old_hash = old_items.get(key_, (None, None))
+        if current is None:
+            if old_hash == current_hash:
+                continue
+            edits.append(
+                _insertion_into_body(
+                    data,
+                    element_,
+                    item_version_text(ItemVersion(1, current_hash)),
+                )
+            )
+            continue
+        if current.content_hash == current_hash:
+            continue
+        old_version = (
+            _read_item_version(old_element) if old_element is not None else None
+        )
+        is_manual = (
+            old_version is not None and old_version.version != current.version
+        )
+        version = (
+            current.version
+            if is_manual or current.content_hash is None
+            else current.version + 1
+        )
+        usage = find_item_version(element_.members)
+        assert usage is not None
+        edits.append(
+            _Edit(
+                usage.span.byte_start,
+                usage.span.byte_end,
+                item_version_text(ItemVersion(version, current_hash)),
+            )
+        )
+
+    old_trace_keys = (
+        {key_ for key_, _ in _design_traces(old_model.members)}
+        if old_model is not None
+        else set()
+    )
+    for key_, trace_ in _design_traces(new_model.members):
+        if key_ in old_trace_keys:
+            continue
+        if find_traced_version(trace_.members) is not None:
+            continue
+        traced_version = target_version(trace_.requirement)
+        if traced_version is None:
+            continue
+        edits.append(
+            _insertion_into_body(
+                data, trace_, traced_version_text(traced_version)
+            )
+        )
+
+    if len(edits) == 0:
+        return new_text
+    return _apply_edits(data, edits)
+
+
+def review_traces(file_text: str, versions_by_offset: Dict[int, int]) -> str:
+    """
+    Set the traced version of satisfy and verify statements.
+
+    versions_by_offset maps the byte offset of a statement to its new traced
+    version. Raises SysMLEditError when a statement is not found.
+    """
+    data = file_text.encode("utf-8")
+    model = _parse(file_text)
+    edits: List[_Edit] = []
+    found_offsets: List[int] = []
+    for _, trace_ in _design_traces(model.members):
+        offset = trace_.span.byte_start
+        if offset not in versions_by_offset:
+            continue
+        found_offsets.append(offset)
+        text = traced_version_text(versions_by_offset[offset])
+        usage = find_traced_version(trace_.members)
+        if usage is not None:
+            edits.append(
+                _Edit(usage.span.byte_start, usage.span.byte_end, text)
+            )
+        else:
+            edits.append(_insertion_into_body(data, trace_, text))
+    if sorted(found_offsets) != sorted(versions_by_offset.keys()):
+        raise SysMLEditError(
+            "The SysML file has changed on disk. Reload the page."
+        )
+    if len(edits) == 0:
+        return file_text
+    return _apply_edits(data, edits)
+
+
 def validate_text(
     text: str, file_path: Optional[str], relative_path: str
 ) -> None:
@@ -374,6 +522,121 @@ def validate_text(
         )
     except StrictDocException as exception_:
         raise SysMLEditError(exception_.to_print_message()) from exception_
+
+
+def _design_items(
+    members: List[SysMLMember],
+) -> List[Tuple[str, SysMLElement]]:
+    """
+    The design elements that are StrictDoc nodes, with a matching key.
+
+    The key is the qualified name, the kind and the position among
+    elements with the same name and kind.
+    """
+    items: List[Tuple[str, SysMLElement]] = []
+    counts: Dict[str, int] = {}
+
+    def visit(members_: List[SysMLMember], prefix: List[str]) -> None:
+        for member_ in members_:
+            if isinstance(member_, SysMLPackage):
+                visit(
+                    member_.members,
+                    prefix + [member_.name] if member_.name else prefix,
+                )
+            elif isinstance(member_, SysMLElement):
+                name = display_name(member_) or f"anonymous_{member_.kind}"
+                segments = prefix + [name]
+                if (member_.kind, member_.is_definition) in DESIGN_TAGS:
+                    base = "::".join(segments) + "|" + declaration_kind(member_)
+                    index = counts.get(base, 0)
+                    counts[base] = index + 1
+                    items.append((f"{base}|{index}", member_))
+                visit(member_.members, segments)
+
+    visit(members, [])
+    return items
+
+
+def _design_traces(
+    members: List[SysMLMember],
+) -> List[Tuple[str, SysMLTrace]]:
+    """
+    The satisfy and verify statements, with a matching key.
+
+    The key is the qualified name of the enclosing element, the statement
+    and the position among equal statements.
+    """
+    traces: List[Tuple[str, SysMLTrace]] = []
+    counts: Dict[str, int] = {}
+
+    def visit(members_: List[SysMLMember], prefix: List[str]) -> None:
+        for member_ in members_:
+            if isinstance(member_, SysMLPackage):
+                visit(
+                    member_.members,
+                    prefix + [member_.name] if member_.name else prefix,
+                )
+            elif isinstance(member_, SysMLElement):
+                name = display_name(member_) or f"anonymous_{member_.kind}"
+                visit(member_.members, prefix + [name])
+            elif isinstance(member_, (SysMLSatisfy, SysMLVerify)):
+                by_text = (
+                    member_.by
+                    if isinstance(member_, SysMLSatisfy)
+                    and member_.by is not None
+                    else ""
+                )
+                base = (
+                    "::".join(prefix)
+                    + f"|{type(member_).__name__}|{member_.requirement}"
+                    + f"|{by_text}"
+                )
+                index = counts.get(base, 0)
+                counts[base] = index + 1
+                traces.append((f"{base}|{index}", member_))
+
+    visit(members, [])
+    return traces
+
+
+def _read_item_version(element: SysMLElement) -> Optional[ItemVersion]:
+    try:
+        return read_item_version(element.members)
+    except SysMLVersioningError as exception_:
+        raise SysMLEditError(exception_.to_print_message()) from exception_
+
+
+def _insertion_into_body(
+    data: bytes, member: Union[SysMLElement, SysMLTrace], text: str
+) -> _Edit:
+    """
+    Insert text as the first member of the body of member.
+
+    A member without a body, as in `part p : T;`, gets one. So does an
+    empty body, as in `part p { }`.
+    """
+    span = (
+        _member_span(member)
+        if isinstance(member, SysMLElement)
+        else (member.span)
+    )
+    indent = _line_indent(data, span.byte_start)
+    child_indent = indent + _INDENT
+    new_body = "{\n" + child_indent + text + "\n" + indent + "}"
+    body_span = member.body_span
+    if body_span is None:
+        semicolon = span.byte_end - 1
+        if data[semicolon : semicolon + 1] != b";":
+            raise SysMLEditError(
+                "Could not add versioning metadata to the SysML member at "
+                f"line {span.line_start}."
+            )
+        return _Edit(semicolon, span.byte_end, " " + new_body)
+    inner = data[body_span.byte_start + 1 : body_span.byte_end - 1]
+    if len(inner.strip()) == 0:
+        return _Edit(body_span.byte_start, body_span.byte_end, new_body)
+    position = body_span.byte_start + 1
+    return _Edit(position, position, "\n" + child_indent + text)
 
 
 def _find_element_in(
@@ -664,6 +927,13 @@ def _parse(text: str) -> SysMLModel:
         return SysMLParser.parse_string(text)
     except SysMLParseError as exception_:
         raise SysMLEditError(exception_.to_print_message()) from exception_
+
+
+def _parse_or_none(text: str) -> Optional[SysMLModel]:
+    try:
+        return SysMLParser.parse_string(text)
+    except SysMLParseError:
+        return None
 
 
 def _check_single_element(text: str, byte_start: int, byte_end: int) -> None:

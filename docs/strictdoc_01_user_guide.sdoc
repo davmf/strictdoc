@@ -5446,6 +5446,10 @@ STATEMENT: >>>
       - Text in ``require constraint Ellipsis``.
     * - Parent relation
       - ``dependency from <child> to <parent>;``
+    * - ``ITEM_VERSION``
+      - ``@StrictDocVersioning::ItemVersion { ... }`` in the body of a
+        requirement or a design element. See the section "Item versions
+        and suspect traces".
     * - Design element
       - ``part``, ``action``, ``calc def``, ``verification`` or ``analysis``
         element. The ``UID`` is the short name, or the qualified name if
@@ -5592,6 +5596,155 @@ previous content.
 If the file changes on disk after the editor opens, StrictDoc rejects the
 save. Cancel and open the editor again.
 <<<
+
+[[/SECTION]]
+
+[[SECTION]]
+MID: 31d3ed860f3a4503945686ebe90e52cf
+UID: SECTION-UG-SysML-item-versions
+TITLE: Item versions and suspect traces
+
+[TEXT]
+MID: a91351ac97094f2181eb4c064d59b737
+STATEMENT: >>>
+StrictDoc can give each requirement and design element a version. Each
+trace can record the version of the item it points to. When that item gets
+a new version, StrictDoc marks the trace as suspect until a user reviews it.
+
+Item versioning is off by default. Turn it on in ``strictdoc_config.py``:
+
+.. code-block:: python
+
+    SysMLFormat(item_versioning=True)
+
+Without the option, StrictDoc reads and keeps the versioning metadata, but
+it does not bump versions, record trace versions or report warnings.
+<<<
+
+[[SECTION]]
+MID: b2c5f358761942d882000c99f07bfefa
+TITLE: Versioning metadata
+
+[TEXT]
+MID: 47e52baedb7c43318fc43ec8d2bddaad
+STATEMENT: >>>
+The version of an item is a metadata usage, the first member of its body:
+
+.. code-block:: text
+
+    requirement <'SYS-1'> 'Shift throughput' {
+        @StrictDocVersioning::ItemVersion { version = 3; contentHash = "85e4a3a1209f88f1"; }
+        doc /*
+         * The instrument shall complete 96 samples in an 8-hour shift.
+         */
+    }
+
+A trace records the version of its target in its own body. The target of a
+``dependency`` is the parent requirement. The target of ``satisfy`` and
+``verify`` is the requirement.
+
+.. code-block:: text
+
+    dependency from 'SYS-1' to 'STK-1' {
+        @StrictDocVersioning::TracedVersion { version = 2; }
+    }
+
+    satisfy requirement 'SYS-1' by pump {
+        @StrictDocVersioning::TracedVersion { version = 3; }
+    }
+
+The package ``StrictDocVersioning`` defines both metadata types. StrictDoc
+writes it to ``StrictDocVersioning.sysml`` in the project root the first
+time it saves a file with item versioning. It does not write the file when
+the project already has a package with this name. The metadata names are
+qualified, so the files need no ``import`` statement for them, and they stay
+valid for the SysML v2 Pilot Implementation.
+
+The metadata does not change the role of a file. StrictDoc shows the version
+in the ``ITEM_VERSION`` field of the node.
+
+A requirement attribute named ``itemVersion`` conflicts with the
+``ITEM_VERSION`` field. StrictDoc then reads the file as a design package.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
+MID: c2b3d275edec41c1b5c38e60efcdc90e
+TITLE: Content hash
+
+[TEXT]
+MID: cab9c735932b4fd98d1b1e2075d98ff5
+STATEMENT: >>>
+``contentHash`` is a hash of the text of the item. StrictDoc ignores
+whitespace and all versioning metadata when it computes the hash, so a new
+version or a new trace version does not change it.
+
+- For a requirement, StrictDoc hashes the text that its writer produces for
+  the requirement.
+- For a design element, StrictDoc hashes the source text of the element,
+  including nested elements and statements. A change to a nested element
+  therefore also changes the hash of its parent.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
+MID: 6548c04a8d8041c4b15c9aa110afba1f
+TITLE: Saving with item versioning
+
+[TEXT]
+MID: 2ece456a89874ea5886b7a715be96b73
+STATEMENT: >>>
+When StrictDoc saves a file with item versioning, it updates the versions
+as follows:
+
+- A changed item gets the next version and the new content hash. If the
+  same edit changes the version by hand, StrictDoc keeps that version.
+- StrictDoc gives version 1 to every requirement of a requirements package
+  that has no version yet.
+- StrictDoc gives version 1 to a new or changed design element without a
+  version. Unchanged design elements stay without a version.
+- A new trace records the current version of its target, if the target has
+  a version. Existing traces keep the version they record.
+
+This applies to the requirement form, the SysML element editor and the
+``Edit SysML source`` action of the Web UI.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
+MID: f7c19149bcb641459cc92fbfc667f145
+TITLE: Warnings and reviews
+
+[TEXT]
+MID: fe8cf583ee2d4599a68a93b449eda23c
+STATEMENT: >>>
+StrictDoc checks the versions after it builds the traceability index. It
+prints each issue as a warning and shows it on the node in the HTML output.
+The issues do not stop the export. There are two kinds of issues:
+
+- The stored content hash of an item does not match its text. Someone
+  changed the item without a version bump, for example in a text editor.
+- A trace is suspect: the version that it records differs from the current
+  version of its target, or the target has no version.
+
+StrictDoc does not check traces that record no version.
+
+In the Web UI, a node with suspect traces has a ``Mark traces reviewed``
+action. The action sets each suspect trace of the node to the current
+version of its target. It changes only the ``TracedVersion`` metadata, so
+the node keeps its own version.
+
+The Web UI updates the warnings of other documents when it rebuilds the
+traceability index. It rebuilds the index after a save in the SysML editor,
+after ``Mark traces reviewed`` and when the server starts. A save in the
+requirement form updates the edited node, but not the warnings of other
+documents.
+<<<
+
+[[/SECTION]]
 
 [[/SECTION]]
 

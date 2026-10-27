@@ -15,6 +15,8 @@ Design rules:
   line notes are parsed as members so that their text is preserved.
 - Expressions are captured as raw text here. parser.py parses them into an
   expression tree (see expression.py).
+- `dependency`, `satisfy` and `verify` take an optional body, so that they
+  can carry metadata such as `@StrictDocVersioning::TracedVersion { ... }`.
 """
 
 SYSML_GRAMMAR = r"""
@@ -168,16 +170,16 @@ Dependency:
     'dependency'
     ('from' sources+=QualifiedName[','])?
     'to' targets+=QualifiedName[',']
-    ';'
+    (body=Body | ';')
 ;
 
 Satisfy:
     'satisfy' ('requirement')? requirement=QualifiedName
-    ('by' by=QualifiedName)? ';'
+    ('by' by=QualifiedName)? (body=Body | ';')
 ;
 
 Verify:
-    'verify' ('requirement')? requirement=QualifiedName ';'
+    'verify' ('requirement')? requirement=QualifiedName (body=Body | ';')
 ;
 
 Allocate:
@@ -215,7 +217,7 @@ Perform:
 ;
 
 MetadataUsage:
-    '@' name=Name (block=RawBlock | ';')
+    '@' name=QualifiedName (block=RawBlock | ';')
 ;
 
 MemberRequireConstraint:

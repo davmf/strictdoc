@@ -21,7 +21,7 @@ SysMLOpaque. The Opaque type stands for unknown members inside a body.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from strictdoc.backend.sysml.expression import Expression
 
@@ -197,12 +197,19 @@ class SysMLRequireConstraint:
 
 @dataclass
 class SysMLDependency:
-    """`dependency from <sources> to <targets>;`. Names are unquoted."""
+    """
+    `dependency from <sources> to <targets>;`. Names are unquoted.
+
+    members holds the body members, for example metadata usages. It is empty
+    when the dependency ends with `;`.
+    """
 
     sources: List[str]
     targets: List[str]
     annotations: List[str]
     span: SysMLSpan
+    members: List["SysMLMember"] = field(default_factory=list)
+    body_span: Optional[SysMLSpan] = None
 
 
 @dataclass
@@ -213,6 +220,8 @@ class SysMLSatisfy:
     span: SysMLSpan
     by_path: List[str] = field(default_factory=list)
     source_text: str = ""
+    members: List["SysMLMember"] = field(default_factory=list)
+    body_span: Optional[SysMLSpan] = None
 
 
 @dataclass
@@ -221,6 +230,8 @@ class SysMLVerify:
     annotations: List[str]
     span: SysMLSpan
     source_text: str = ""
+    members: List["SysMLMember"] = field(default_factory=list)
+    body_span: Optional[SysMLSpan] = None
 
 
 @dataclass
@@ -291,12 +302,19 @@ class SysMLPerform:
 
 @dataclass
 class SysMLMetadataUsage:
-    """`@Name { ... }` or `@Name;`. body_text is None without a block."""
+    """
+    `@Name { ... }` or `@Name;`. body_text is None without a block.
+
+    name is the qualified name as written, with quoted segments unquoted,
+    e.g. `StrictDocVersioning::ItemVersion`. values maps each `name = value;`
+    assignment of the block to its raw value text, e.g. `"ab12"` or `3`.
+    """
 
     name: str
     body_text: Optional[str]
     annotations: List[str]
     span: SysMLSpan
+    values: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass

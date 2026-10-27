@@ -288,6 +288,9 @@ class TraceabilityIndexBuilder:
             traceability_index.strictdoc_last_update
         )
 
+        for format_ in project_config.formats:
+            format_.traceability_index_build_finished(traceability_index)
+
         if project_config.user_plugin is not None:
             project_config.user_plugin.traceability_index_build_finished(
                 traceability_index

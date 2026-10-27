@@ -88,6 +88,13 @@ shows the files that the command writes. StrictDoc then rebuilds the
 project. An action can be bound to SysML design elements, for example to
 every part typed by a ``Scenario``, and the element node then has a run
 button.
+
+7\) SysML requirements and design elements can have an item version, and
+each trace can record the version of its target. With
+``SysMLFormat(item_versioning=True)``, StrictDoc bumps the version of each
+changed item when it saves a file. StrictDoc warns about traces whose target
+has a different version. The ``Mark traces reviewed`` action of the Web UI
+updates them.
 <<<
 
 [[/SECTION]]

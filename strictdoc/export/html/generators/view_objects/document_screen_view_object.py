@@ -41,7 +41,8 @@ from strictdoc.backend.sdoc.models.model import (
     SDocNodeIF,
 )
 from strictdoc.backend.sdoc.models.node import SDocNode, SDocNodeField
-from strictdoc.backend.sysml import node_data
+from strictdoc.backend.sysml import node_data, version_tracking
+from strictdoc.backend.sysml.sysml_format import versioning_format_for_document
 from strictdoc.core.document_iterator import DocumentIterationContext
 from strictdoc.core.document_tree import DocumentTree
 from strictdoc.core.document_tree_iterator import DocumentTreeIterator
@@ -827,6 +828,30 @@ class DocumentScreenViewObject:
         """
         return isinstance(node, SDocNode) and node_data.is_design_element_node(
             node
+        )
+
+    def has_reviewable_sysml_traces(
+        self, node: Union[SDocDocument, SDocNode]
+    ) -> bool:
+        """
+        Determines if a SysML node has suspect traces that can be marked as
+        reviewed, i.e. traces whose target has a newer item version.
+        """
+        if not isinstance(node, SDocNode):
+            return False
+        document = node.get_document()
+        if not isinstance(document, SDocDocument):
+            return False
+        sysml_format = versioning_format_for_document(
+            self.project_config, document
+        )
+        if sysml_format is None:
+            return False
+        return any(
+            suspect_.current_version is not None
+            for suspect_ in version_tracking.suspect_traces(
+                node, sysml_format.target_version_lookup()
+            )
         )
 
     def get_bound_project_actions(

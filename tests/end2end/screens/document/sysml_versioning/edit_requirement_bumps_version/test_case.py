@@ -1,0 +1,54 @@
+import os
+
+from tests.end2end.e2e_case import E2ECase
+from tests.end2end.end2end_test_setup import End2EndTestSetup
+from tests.end2end.helpers.screens.document.form_edit_requirement import (
+    Form_EditRequirement,
+)
+from tests.end2end.helpers.screens.project_index.screen_project_index import (
+    Screen_ProjectIndex,
+)
+from tests.end2end.server import SDocTestServer
+
+
+class Test(E2ECase):
+    def test(self):
+        test_setup = End2EndTestSetup(path_to_test_file=__file__)
+
+        # The SysML format is registered in the test folder's config, outside
+        # the sandbox, so that the sandbox holds only the document.
+        path_to_config = os.path.join(
+            test_setup.path_to_test_dir, "strictdoc_config.py"
+        )
+        with SDocTestServer(
+            input_path=test_setup.path_to_sandbox,
+            config_path=path_to_config,
+        ) as test_server:
+            self.open(test_server.get_host_and_port())
+
+            screen_project_index = Screen_ProjectIndex(self)
+            screen_project_index.assert_on_screen()
+            screen_document = screen_project_index.do_click_on_first_document()
+            screen_document.assert_on_screen_document()
+            screen_document.assert_header_document_title("Requirements")
+
+            # The first node is the diagram of the file.
+            requirement = screen_document.get_node(node_order=2)
+            requirement.assert_field_contains("ITEM_VERSION", "1")
+
+            form_edit_requirement: Form_EditRequirement = (
+                requirement.do_open_form_edit_requirement()
+            )
+            form_edit_requirement.do_fill_in_field_statement(
+                "Changed parent statement."
+            )
+            form_edit_requirement.do_form_submit()
+
+            requirement.assert_requirement_statement_contains(
+                "Changed parent statement."
+            )
+            requirement.assert_field_contains("ITEM_VERSION", "2")
+
+        # REQ-1 is at version 2, REQ-2 gets version 1, the dependency is
+        # pinned to version 2, and the library file is written.
+        assert test_setup.compare_sandbox_and_expected_output()

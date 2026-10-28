@@ -12,6 +12,8 @@ The layout follows the Halcyon conventions document:
 - attributes and the require constraint directly after the statement;
 - the item version, if any, as the first line of a requirement body, and the
   traced version, if any, in the body of a dependency (see versioning.py).
+- the value of an enum-typed attribute as a literal qualified by its type,
+  e.g. `Status::'Needs work'` (see choices.py).
 
 Reading a canonical file and writing it back produces identical text.
 
@@ -28,7 +30,7 @@ from typing import Dict, List, Optional, Sequence, Set, Union
 from strictdoc.backend.sdoc.models.document import SDocDocument
 from strictdoc.backend.sdoc.models.node import SDocNode
 from strictdoc.backend.sdoc.models.reference import ParentReqReference
-from strictdoc.backend.sysml import node_data
+from strictdoc.backend.sysml import choices, node_data
 from strictdoc.backend.sysml.versioning import (
     ITEM_VERSION_FIELD,
     content_hash,
@@ -196,6 +198,7 @@ class SysMLWriter:
             if value_ is not None:
                 values_by_title[field_title_] = value_
 
+        choice_types = _choice_types(requirement)
         written_titles: Set[str] = set()
         for attribute_name_, type_text_ in attribute_types.items():
             field_title_ = node_data.attribute_field_title(attribute_name_)
@@ -205,20 +208,25 @@ class SysMLWriter:
                 + SysMLWriter._attribute_text(
                     _name_text(attribute_name_),
                     type_text_,
-                    values_by_title.get(field_title_),
+                    _attribute_value(
+                        values_by_title.get(field_title_),
+                        type_text_,
+                        choice_types.get(field_title_),
+                    ),
                 )
             )
         for field_title_, value_ in values_by_title.items():
             if field_title_ in written_titles:
                 continue
+            choice_type = choice_types.get(field_title_)
             lines.append(
                 body_pad
                 + SysMLWriter._attribute_text(
                     _name_text(
                         node_data.attribute_name_from_field_title(field_title_)
                     ),
-                    None,
-                    value_,
+                    choice_type,
+                    _attribute_value(value_, choice_type, choice_type),
                 )
             )
 
@@ -287,6 +295,34 @@ def _name_text(raw_name: str) -> str:
     if _IDENTIFIER_PATTERN.fullmatch(raw_name) is not None:
         return raw_name
     return _quote_name(raw_name)
+
+
+def _choice_types(requirement: SDocNode) -> Dict[str, str]:
+    if requirement.ng_document_reference is None:
+        return {}
+    document = requirement.ng_document_reference.get_document()
+    if not isinstance(document, SDocDocument):
+        return {}
+    return node_data.get_choice_types(document)
+
+
+def _attribute_value(
+    value: Optional[str],
+    type_text: Optional[str],
+    choice_type: Optional[str],
+) -> Optional[str]:
+    """
+    The value text of an attribute. The value of an enum-typed attribute is
+    a bare literal name, which is qualified by its type.
+    """
+    if (
+        value is None
+        or type_text is None
+        or choice_type is None
+        or type_text.strip() != choice_type
+    ):
+        return value
+    return choices.literal_reference(choice_type, value)
 
 
 def _field_text(node: SDocNode, field_title: str) -> Optional[str]:

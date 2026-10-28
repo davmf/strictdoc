@@ -61,7 +61,7 @@ from strictdoc.backend.sdoc.models.node import (
 )
 from strictdoc.backend.sdoc.models.reference import ParentReqReference
 from strictdoc.backend.sdoc.pickle_cache import PickleCache
-from strictdoc.backend.sysml import node_data, versioning
+from strictdoc.backend.sysml import choices, node_data, versioning
 from strictdoc.backend.sysml.diagram import (
     as_rst_raw_html,
     create_mermaid_diagram,
@@ -132,7 +132,7 @@ DESIGN_TAGS: Dict[Tuple[str, bool], str] = {
 
 # Part of the pickle cache key. Bump it when the reader output changes, so
 # that cached documents built by an older reader are not reused.
-SYSML_CACHE_KIND = "sysml-reader-11"
+SYSML_CACHE_KIND = "sysml-reader-12"
 
 # Specialisation operators that name a type of the element. Redefinition
 # (`:>>`) and subsetting name features, not types.
@@ -203,6 +203,9 @@ class SysMLReader:
                 model, file_path=file_path, relative_path=relative_path
             )
         _update_diagram_node(document, model)
+        node_data.set_enum_definitions(
+            document, choices.collect_enum_definitions(model)
+        )
         return document
 
     @staticmethod
@@ -481,11 +484,22 @@ def _build_requirements_document(
         else _fallback_title(file_path)
     )
     attribute_field_titles: List[str] = []
+    choice_types: Dict[str, str] = {}
     for attribute_ in _collect_requirement_attributes(model.members):
         assert attribute_.name is not None
         field_title = node_data.attribute_field_title(attribute_.name)
         if field_title not in attribute_field_titles:
             attribute_field_titles.append(field_title)
+        if (
+            field_title not in choice_types
+            and attribute_.type_text is not None
+            and attribute_.value_text is not None
+            and choices.enum_literal(
+                attribute_.type_text, attribute_.value_text
+            )
+            is not None
+        ):
+            choice_types[field_title] = attribute_.type_text.strip()
 
     document = SDocDocument(
         mid=str(_stable_mid(relative_path)),
@@ -502,6 +516,7 @@ def _build_requirements_document(
             item_versioning or _has_item_version(top_package.members)
         ),
     )
+    node_data.set_choice_types(document, choice_types)
     document.ng_including_document_reference = DocumentReference()
     document_reference = DocumentReference()
     document_reference.set_document(document)
@@ -712,9 +727,16 @@ def _create_requirement_node(
     for attribute_ in attributes:
         assert attribute_.name is not None
         if attribute_.value_text is not None:
+            literal = choices.enum_literal(
+                attribute_.type_text, attribute_.value_text
+            )
             value_by_field_title[
                 node_data.attribute_field_title(attribute_.name)
-            ] = _collapse_value(attribute_.value_text)
+            ] = (
+                literal
+                if literal is not None
+                else _collapse_value(attribute_.value_text)
+            )
 
     item_version = _read_item_version(element, state.file_path)
 

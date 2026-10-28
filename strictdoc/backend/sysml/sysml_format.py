@@ -10,13 +10,16 @@ SysMLFormat(item_versioning=True) turns on item versioning: StrictDoc
 versions requirements and design elements when it saves them, pins new
 traces to the version of their target, and warns about suspect traces. See
 versioning.py and version_tracking.py.
+
+Requirement attributes typed by an `enum def` are SingleChoice fields, which
+the edit form shows as drop-down lists. See choices.py.
 """
 
 import os
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from strictdoc.backend.sdoc.models.document import SDocDocument
-from strictdoc.backend.sysml import version_tracking, versioning
+from strictdoc.backend.sysml import choices, version_tracking, versioning
 from strictdoc.backend.sysml.reader import SysMLReader
 from strictdoc.backend.sysml.version_tracking import TargetVersionLookup
 from strictdoc.backend.sysml.writer import SysMLWriter
@@ -97,6 +100,7 @@ class SysMLFormat(Format):
         self, traceability_index: "TraceabilityIndex"
     ) -> None:
         self._traceability_index = traceability_index
+        choices.apply_choice_fields(traceability_index)
         if self.item_versioning:
             version_tracking.report_issues(traceability_index)
 

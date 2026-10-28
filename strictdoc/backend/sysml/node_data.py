@@ -25,11 +25,15 @@ and the shared model classes stay unchanged.
 - Traced version: per relation, the version of the target that the trace
   records, and for design packages the byte offset of the satisfy or verify
   statement in the file.
+- Enum definitions: per document, the literal names of each `enum def` of
+  the file, by qualified name. See choices.py.
+- Choice types: per requirements document, the type text of each field
+  whose attributes hold enumeration literals, by field title.
 """
 
 import hashlib
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from strictdoc.backend.sdoc.models.document import SDocDocument
 from strictdoc.backend.sdoc.models.node import SDocNode
@@ -49,6 +53,8 @@ _ITEM_VERSION_KEY = "ng_sysml_item_version"
 _COMPUTED_HASH_KEY = "ng_sysml_computed_hash"
 _TRACED_VERSION_KEY = "ng_sysml_traced_version"
 _STATEMENT_OFFSET_KEY = "ng_sysml_statement_offset"
+_ENUM_DEFINITIONS_KEY = "ng_sysml_enum_definitions"
+_CHOICE_TYPES_KEY = "ng_sysml_choice_types"
 
 
 def set_attribute_types(
@@ -162,6 +168,34 @@ def set_statement_offset(reference: Reference, byte_offset: int) -> None:
 def get_statement_offset(reference: Reference) -> Optional[int]:
     value: Any = getattr(reference, _STATEMENT_OFFSET_KEY, None)
     return value if isinstance(value, int) else None
+
+
+def set_enum_definitions(
+    document: SDocDocument, definitions: Dict[Tuple[str, ...], List[str]]
+) -> None:
+    setattr(document, _ENUM_DEFINITIONS_KEY, dict(definitions))
+
+
+def get_enum_definitions(
+    document: SDocDocument,
+) -> Dict[Tuple[str, ...], List[str]]:
+    value: Any = getattr(document, _ENUM_DEFINITIONS_KEY, None)
+    if value is None:
+        return {}
+    return dict(value)
+
+
+def set_choice_types(
+    document: SDocDocument, choice_types: Dict[str, str]
+) -> None:
+    setattr(document, _CHOICE_TYPES_KEY, dict(choice_types))
+
+
+def get_choice_types(document: SDocDocument) -> Dict[str, str]:
+    value: Any = getattr(document, _CHOICE_TYPES_KEY, None)
+    if value is None:
+        return {}
+    return dict(value)
 
 
 def is_design_document(document: SDocDocument) -> bool:

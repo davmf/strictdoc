@@ -27,6 +27,11 @@ Design package (autogen, edited in the web UI through editor.py):
 - satisfy X by E -> Parent relation with role "Satisfies" on E to X
 - verify X inside an element -> Parent relation with role "Verifies" on the
   element to X
+- a type reference of an element, such as `:> 'TC-1'`, -> Parent relation
+  with role "Typed by", "Subsets", "Specializes" or "Redefines", and the
+  typing of a member without its own node, such as `subject dut : 'CONF-1'`,
+  -> Parent relation with role "References". The relation stays only if the
+  reference names the UID of a node (see TYPE_REFERENCE_ROLES)
 - item versions and traced versions as in requirements packages
 
 Both kinds of documents start with an autogen TEXT node that shows a Mermaid
@@ -115,6 +120,34 @@ SATISFIES_ROLE = "Satisfies"
 SATISFIED_BY_ROLE = "Satisfied by"
 VERIFIES_ROLE = "Verifies"
 VERIFIED_BY_ROLE = "Verified by"
+TYPED_BY_ROLE = "Typed by"
+SUBSETS_ROLE = "Subsets"
+SPECIALIZES_ROLE = "Specializes"
+REDEFINES_ROLE = "Redefines"
+REFERENCES_ROLE = "References"
+# (role, reverse role) of each relation of a design node.
+DESIGN_RELATION_ROLES: List[Tuple[str, str]] = [
+    (SATISFIES_ROLE, SATISFIED_BY_ROLE),
+    (VERIFIES_ROLE, VERIFIED_BY_ROLE),
+    (TYPED_BY_ROLE, "Type of"),
+    (SUBSETS_ROLE, "Subsetted by"),
+    (SPECIALIZES_ROLE, "Specialized by"),
+    (REDEFINES_ROLE, "Redefined by"),
+    (REFERENCES_ROLE, "Referenced by"),
+]
+# (specialisation operator, is_definition) -> role of the relation that a
+# type reference of a design element gives. For a definition, `:>` means
+# specialisation, and for a usage it means subsetting.
+TYPE_REFERENCE_ROLES: Dict[Tuple[str, bool], str] = {
+    (":", False): TYPED_BY_ROLE,
+    ("defined by", False): TYPED_BY_ROLE,
+    (":>", False): SUBSETS_ROLE,
+    ("subsets", False): SUBSETS_ROLE,
+    (":>", True): SPECIALIZES_ROLE,
+    ("specializes", True): SPECIALIZES_ROLE,
+    (":>>", False): REDEFINES_ROLE,
+    ("redefines", False): REDEFINES_ROLE,
+}
 
 # (keyword, is_definition) -> node tag for design packages.
 DESIGN_TAGS: Dict[Tuple[str, bool], str] = {
@@ -132,7 +165,7 @@ DESIGN_TAGS: Dict[Tuple[str, bool], str] = {
 
 # Part of the pickle cache key. Bump it when the reader output changes, so
 # that cached documents built by an older reader are not reused.
-SYSML_CACHE_KIND = "sysml-reader-12"
+SYSML_CACHE_KIND = "sysml-reader-13"
 
 # Specialisation operators that name a type of the element. Redefinition
 # (`:>>`) and subsetting name features, not types.
@@ -1180,15 +1213,10 @@ def _create_design_grammar(document: SDocDocument) -> DocumentGrammar:
             GrammarElementRelationParent(
                 parent=element,
                 relation_type="Parent",
-                relation_role=SATISFIES_ROLE,
-                reverse_relation_role=SATISFIED_BY_ROLE,
-            ),
-            GrammarElementRelationParent(
-                parent=element,
-                relation_type="Parent",
-                relation_role=VERIFIES_ROLE,
-                reverse_relation_role=VERIFIED_BY_ROLE,
-            ),
+                relation_role=role_,
+                reverse_relation_role=reverse_role_,
+            )
+            for role_, reverse_role_ in DESIGN_RELATION_ROLES
         ]
         elements.append(element)
     grammar = DocumentGrammar(
@@ -1420,9 +1448,60 @@ def _create_design_node(
     node_data.set_computed_hash(
         node, versioning.element_hash(state.source_data, element, member_span)
     )
+    _add_type_references(node, element)
     state.nodes_by_path.append((element_segments, node))
     state.elements_by_node.append((node, element))
     return node
+
+
+def _add_type_references(node: SDocNode, element: SysMLElement) -> None:
+    """
+    Give a design node one relation for each type reference.
+
+    The references are the specialisations of the element, for example
+    `verification run :> 'TC-1'` (Subsets), and the typing of its members
+    that have no node of their own, for example `subject dut : 'CONF-1';`
+    (References). Most references name a library type or a definition
+    without a short name, so the relations are candidates: the traceability
+    index keeps a relation only if the reference names the UID of a node,
+    either as written (`Design::Pump`) or by its last segment (`'TC-1'`).
+    """
+    references: List[Tuple[str, str]] = []
+    for specialization_ in element.specializations:
+        role = TYPE_REFERENCE_ROLES.get(
+            (specialization_.operator, element.is_definition)
+        )
+        if role is not None:
+            references.extend(
+                (role, target_) for target_ in specialization_.targets
+            )
+    for member_ in element.members:
+        if not isinstance(member_, (SysMLAttribute, SysMLElement)):
+            continue
+        if isinstance(member_, SysMLElement) and (
+            member_.is_definition
+            or (member_.kind, member_.is_definition) in DESIGN_TAGS
+        ):
+            continue
+        for specialization_ in member_.specializations:
+            if specialization_.operator in (":", "defined by"):
+                references.extend(
+                    (REFERENCES_ROLE, target_)
+                    for target_ in specialization_.targets
+                )
+    seen: Set[Tuple[str, str]] = set()
+    for role_, target_ in references:
+        if (role_, target_) in seen:
+            continue
+        seen.add((role_, target_))
+        candidate_uids = list(
+            dict.fromkeys([target_, _last_name_segment(target_)])
+        )
+        reference = ParentReqReference(
+            parent=node, ref_uid=candidate_uids[0], role=role_
+        )
+        node_data.set_candidate_uids(reference, candidate_uids)
+        node.relations.append(reference)
 
 
 def _direct_type_names(element: SysMLElement) -> List[str]:

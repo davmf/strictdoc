@@ -1,0 +1,40 @@
+#
+# Type references between design packages.
+#
+# A test run subsets its test case (`:> 'TC-1'`) and its subject is typed by
+# a test configuration (`subject dut : 'CONF-1'`). Both references name the
+# UID of a node in another file, so they become relations. `String` names a
+# library type and no relation is made for it.
+#
+
+RUN: %strictdoc export %S --formats=html --output-dir %T --config %S/strictdoc_config.py | filecheck %s --dump-input=fail
+CHECK: Export completed.
+
+RUN: %cat %T/html/%THIS_TEST_FOLDER/runs.html | filecheck %s --dump-input=fail --check-prefix CHECK-RUNS-HTML
+
+CHECK-RUNS-HTML: RELATIONS (Parent):
+CHECK-RUNS-HTML: requirement__parent-uid">TC-1<
+CHECK-RUNS-HTML: (Subsets)
+CHECK-RUNS-HTML: requirement__parent-uid">CONF-1<
+CHECK-RUNS-HTML: (References)
+CHECK-RUNS-HTML-NOT: requirement__parent-uid
+CHECK-RUNS-HTML: </ul>
+
+RUN: %cat %T/html/%THIS_TEST_FOLDER/cases.html | filecheck %s --dump-input=fail --check-prefix CHECK-CASES-HTML
+
+CHECK-CASES-HTML: requirement__parent-uid">SYS-1<
+CHECK-CASES-HTML: (Verifies)
+CHECK-CASES-HTML: RELATIONS (Child):
+CHECK-CASES-HTML: requirement__child-uid">TR-1<
+CHECK-CASES-HTML: (Subsetted by)
+
+RUN: %cat %T/html/%THIS_TEST_FOLDER/configurations.html | filecheck %s --dump-input=fail --check-prefix CHECK-CONFIGURATIONS-HTML
+
+CHECK-CONFIGURATIONS-HTML: RELATIONS (Child):
+CHECK-CONFIGURATIONS-HTML: requirement__child-uid">TR-1<
+CHECK-CONFIGURATIONS-HTML: (Referenced by)
+
+RUN: %cat %T/html/%THIS_TEST_FOLDER/requirements.html | filecheck %s --dump-input=fail --check-prefix CHECK-REQUIREMENTS-HTML
+
+CHECK-REQUIREMENTS-HTML: requirement__child-uid">TC-1<
+CHECK-REQUIREMENTS-HTML: (Verified by)

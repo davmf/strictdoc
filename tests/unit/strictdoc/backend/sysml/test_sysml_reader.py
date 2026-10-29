@@ -116,8 +116,11 @@ def test_03_design_package_is_read_only_with_satisfy_and_verify_relations():
         (relation_.role, relation_.ref_uid) for relation_ in pump_.relations
     ] == []
     part_nodes = _nodes_of_type(pump_, "PART")
-    assert part_nodes[0].relations[0].role == "Satisfies"
-    assert part_nodes[0].relations[0].ref_uid == "SYS-1"
+    # `part pump : Pump` also gives a candidate relation, see test_17.
+    assert [
+        (relation_.role, relation_.ref_uid)
+        for relation_ in part_nodes[0].relations
+    ] == [("Typed by", "Pump"), ("Satisfies", "SYS-1")]
     check_ = _nodes_of_type(document, "VERIFICATION_DEF")[0]
     assert check_.relations[0].role == "Verifies"
     assert check_.relations[0].ref_uid == "SYS-1"
@@ -468,3 +471,52 @@ package 'Scenarios' {
         "instrument": ["Instrument"],
         "external": ["Other"],
     }
+
+
+def test_17_type_references_become_candidate_relations():
+    text = """\
+package 'Runs' {
+    private import ScalarValues::*;
+    part def Rig :> Bench;
+    verification <'TR-1'> 'Run of check' :> Cases::'TC-1' {
+        subject dut : 'CONF-1', 'REL-1';
+        attribute build : String = "v1";
+        attribute result : Result;
+        verification 'Step' :>> 'TC-1'::step;
+    }
+}
+"""
+    document = SysMLReader.read_from_string(
+        text, file_path="runs.sysml", relative_path="runs.sysml"
+    )
+    run_ = _nodes_of_type(document, "VERIFICATION")[0]
+    assert [
+        (
+            relation_.role,
+            relation_.ref_uid,
+            node_data.get_candidate_uids(relation_),
+        )
+        for relation_ in run_.relations
+    ] == [
+        ("Subsets", "Cases::TC-1", ["Cases::TC-1", "TC-1"]),
+        ("References", "CONF-1", ["CONF-1"]),
+        ("References", "REL-1", ["REL-1"]),
+        ("References", "String", ["String"]),
+        ("References", "Result", ["Result"]),
+    ]
+    step_ = _nodes_of_type(run_, "VERIFICATION")[0]
+    assert [
+        (relation_.role, relation_.ref_uid) for relation_ in step_.relations
+    ] == [("Redefines", "TC-1::step")]
+    rig_ = _nodes_of_type(document, "PART_DEF")[0]
+    assert [
+        (relation_.role, relation_.ref_uid) for relation_ in rig_.relations
+    ] == [("Specializes", "Bench")]
+
+
+def test_18_satisfy_and_verify_relations_have_no_candidates():
+    document = SysMLReader.read_from_string(
+        DESIGN_TEXT, file_path="design.sysml", relative_path="design.sysml"
+    )
+    check_ = _nodes_of_type(document, "VERIFICATION_DEF")[0]
+    assert node_data.get_candidate_uids(check_.relations[0]) is None

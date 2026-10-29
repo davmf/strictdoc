@@ -25,6 +25,10 @@ and the shared model classes stay unchanged.
 - Traced version: per relation, the version of the target that the trace
   records, and for design packages the byte offset of the satisfy or verify
   statement in the file.
+- Candidate UIDs: per relation that comes from a type reference, such as
+  `:> 'TC-1'`, the UIDs that the target may have. The traceability index
+  links the relation to the first candidate that is a node and drops the
+  relation if none is. Other relations have no candidates.
 - Enum definitions: per document, the literal names of each `enum def` of
   the file, by qualified name. See choices.py.
 - Choice types: per requirements document, the type text of each field
@@ -53,6 +57,7 @@ _ITEM_VERSION_KEY = "ng_sysml_item_version"
 _COMPUTED_HASH_KEY = "ng_sysml_computed_hash"
 _TRACED_VERSION_KEY = "ng_sysml_traced_version"
 _STATEMENT_OFFSET_KEY = "ng_sysml_statement_offset"
+_CANDIDATE_UIDS_KEY = "ng_sysml_candidate_uids"
 _ENUM_DEFINITIONS_KEY = "ng_sysml_enum_definitions"
 _CHOICE_TYPES_KEY = "ng_sysml_choice_types"
 
@@ -168,6 +173,15 @@ def set_statement_offset(reference: Reference, byte_offset: int) -> None:
 def get_statement_offset(reference: Reference) -> Optional[int]:
     value: Any = getattr(reference, _STATEMENT_OFFSET_KEY, None)
     return value if isinstance(value, int) else None
+
+
+def set_candidate_uids(reference: Reference, uids: List[str]) -> None:
+    setattr(reference, _CANDIDATE_UIDS_KEY, list(uids))
+
+
+def get_candidate_uids(reference: Reference) -> Optional[List[str]]:
+    value: Any = getattr(reference, _CANDIDATE_UIDS_KEY, None)
+    return list(value) if isinstance(value, list) else None
 
 
 def set_enum_definitions(

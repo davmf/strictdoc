@@ -38,6 +38,7 @@ from strictdoc.backend.sdoc.validations.sdoc_validator import SDocValidator
 from strictdoc.backend.sdoc_source_code.caching_reader import (
     SourceFileTraceabilityCachingReader,
 )
+from strictdoc.backend.sysml import node_data
 from strictdoc.core.constants import GraphLinkType
 from strictdoc.core.document_iterator import SDocDocumentIterator
 from strictdoc.core.document_tree import DocumentTree
@@ -649,6 +650,7 @@ class TraceabilityIndexBuilder:
 
                 # Now it is possible to resolve parents first checking if they
                 # indeed exist.
+                unresolved_candidates: List[ParentReqReference] = []
                 for reference in requirement.relations:
                     if reference.ref_type == ReferenceType.FILE:
                         d_07_file_traceability_index.create_requirement_with_forward_source_links(
@@ -658,6 +660,23 @@ class TraceabilityIndexBuilder:
                         parent_reference: ParentReqReference = assert_cast(
                             reference, ParentReqReference
                         )
+                        candidate_uids = node_data.get_candidate_uids(
+                            parent_reference
+                        )
+                        if candidate_uids is not None:
+                            # A SysML type reference is a relation only if it
+                            # names a node. See backend/sysml/node_data.py.
+                            parent_requirement = _resolve_candidate_uids(
+                                traceability_index,
+                                parent_reference,
+                                candidate_uids,
+                            )
+                            if (
+                                parent_requirement is None
+                                or parent_requirement is requirement
+                            ):
+                                unresolved_candidates.append(parent_reference)
+                                continue
                         parent_requirement = traceability_index.graph_database.get_link_value_weak(
                             link_type=GraphLinkType.UID_TO_NODE,
                             lhs_node=parent_reference.ref_uid,
@@ -749,6 +768,8 @@ class TraceabilityIndexBuilder:
                             )
                     else:
                         raise AssertionError(reference.ref_type)
+                for reference_ in unresolved_candidates:
+                    requirement.relations.remove(reference_)
 
         # Iterate for the third time to validate the graph against
         # requirement cycles.
@@ -989,3 +1010,25 @@ class TraceabilityIndexBuilder:
             tags.remove(sdoc_field_name)
             tags.add(source_field_name)
         return tags
+
+
+def _resolve_candidate_uids(
+    traceability_index: TraceabilityIndex,
+    reference: ParentReqReference,
+    candidate_uids: List[str],
+) -> Optional[SDocNode]:
+    """
+    Return the node of the first candidate UID that exists, or None.
+
+    The reference is pointed at that UID, so the relation shows the UID of
+    the node and not the qualified name it was written with.
+    """
+    for uid_ in candidate_uids:
+        node_ = traceability_index.graph_database.get_link_value_weak(
+            link_type=GraphLinkType.UID_TO_NODE,
+            lhs_node=uid_,
+        )
+        if node_ is not None:
+            reference.ref_uid = uid_
+            return assert_cast(node_, SDocNode)
+    return None

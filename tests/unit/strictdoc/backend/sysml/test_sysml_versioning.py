@@ -79,6 +79,16 @@ def _node(document: SDocDocument, uid: str) -> SDocNode:
     raise AssertionError(uid)
 
 
+def _satisfy_relation(node: SDocNode) -> ParentReqReference:
+    """The Satisfies relation of a usage, which also has a Typed by relation."""
+    return next(
+        relation_
+        for relation_ in node.relations
+        if isinstance(relation_, ParentReqReference)
+        and relation_.role == "Satisfies"
+    )
+
+
 def _with_correct_hash(text: str, uid: str) -> str:
     """Replace the HASH placeholder with the hash that the reader computes."""
     document = _read(text)
@@ -255,7 +265,7 @@ def test_11_design_element_hash_matches_when_stored_correctly():
     assert pump.get_field_by_name("ITEM_VERSION").get_text_value() == "1"
     # `satisfy ... by pump` gives the relation to the usage, not the def.
     pump_usage = _node(_read(text), "Design::Pump::pump")
-    assert node_data.get_statement_offset(pump_usage.relations[0]) is not None
+    assert node_data.get_statement_offset(_satisfy_relation(pump_usage)) is not None
 
 
 def test_12_apply_versioning_bumps_changed_element_and_its_parent():
@@ -317,7 +327,7 @@ def test_14_apply_versioning_pins_new_traces_only():
         "        }"
     ) in result
     valve_usage = _node(_read(result), "Design::Valve::valve")
-    assert node_data.get_traced_version(valve_usage.relations[0]) == 9
+    assert node_data.get_traced_version(_satisfy_relation(valve_usage)) == 9
 
 
 def test_15_review_traces_sets_and_replaces_pins():
@@ -328,7 +338,7 @@ def test_15_review_traces_sets_and_replaces_pins():
         "        }",
     )
     document = _read(text)
-    relation = _node(document, "Design::Pump::pump").relations[0]
+    relation = _satisfy_relation(_node(document, "Design::Pump::pump"))
     offset = node_data.get_statement_offset(relation)
     assert offset is not None
 

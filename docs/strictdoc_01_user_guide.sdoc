@@ -5459,6 +5459,10 @@ STATEMENT: >>>
         relation. ``verify <UID>;`` in a verification case gives the case a
         ``Verifies`` relation. In the requirement, these appear as
         ``Satisfied by`` and ``Verified by`` relations.
+    * - Design relation to another node
+      - A type reference that names the ``UID`` of a node, for example
+        ``verification <'TR-1'> 'Run' :> 'TC-1'``. See the section "Type
+        references".
 <<<
 
 [[/SECTION]]
@@ -5540,6 +5544,72 @@ the file, StrictDoc creates a ``SATISFY`` node that holds the statement. Each
 satisfy statement is then visible on the requirement page, but the relation
 does not reach the element in another file. StrictDoc reads one file at a
 time.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
+MID: fe76a1279cbd4e3ebb8de185f128bd24
+TITLE: Type references
+
+[TEXT]
+MID: c1d2e229e88d45f2b9567493747320fa
+STATEMENT: >>>
+In a design package, a design element gets a relation for each type
+reference that names the ``UID`` of a node. The node can be in any file of
+the project, including requirements packages. The role of the relation
+depends on the reference:
+
+.. list-table::
+    :header-rows: 1
+
+    * - SysML
+      - Role
+      - Reverse role
+    * - ``:`` or ``defined by`` on a usage
+      - ``Typed by``
+      - ``Type of``
+    * - ``:>`` or ``subsets`` on a usage
+      - ``Subsets``
+      - ``Subsetted by``
+    * - ``:>`` or ``specializes`` on a definition
+      - ``Specializes``
+      - ``Specialized by``
+    * - ``:>>`` or ``redefines``
+      - ``Redefines``
+      - ``Redefined by``
+    * - ``:`` on a member without its own node, for example
+        ``subject dut : 'CONF-1';`` or ``attribute a : T;``
+      - ``References``
+      - ``Referenced by``
+
+A reference names a ``UID`` if the reference as written, or its last
+segment, is the ``UID`` of a node. ``Cases::'TC-1'`` and ``'TC-1'`` both name
+the node with the short name ``TC-1``. ``Design::Pump`` names the node
+``Design::Pump`` that has no short name. ``Pump`` does not, because the
+``UID`` of that node is its qualified name.
+
+References to anything else, such as ``ScalarValues::String`` or an
+``enum def``, do not make relations. A reference from an element to itself
+does not make a relation either.
+
+For example, a test run can subset the verification case that it runs and
+reference its test configuration:
+
+.. code-block:: text
+
+    verification <'TR-1'> 'Run of display heart rate result' :> 'TC-1' {
+        subject dut : 'CONF-1';
+        attribute build : String = "v1.0.1";
+    }
+
+The run then has the relations ``Subsets TC-1`` and ``References CONF-1``.
+The case shows the run as ``Subsetted by``, and the requirement that the case
+verifies shows the case as ``Verified by``. The run inherits the objective of
+the case in SysML, but StrictDoc does not repeat the ``Verifies`` relation on
+the run.
+
+Type references have no traced version, so they are never suspect.
 <<<
 
 [[/SECTION]]

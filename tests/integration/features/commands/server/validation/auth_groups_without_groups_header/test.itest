@@ -1,0 +1,4 @@
+RUN: %mkdir %T/
+RUN: %expect_exit 1 %strictdoc server --auth-proxy-user-header X-Forwarded-Email --auth-editor-group editors . | filecheck %s --dump-input=fail
+
+CHECK: error: --auth-editor-group and --auth-admin-group require --auth-proxy-groups-header.

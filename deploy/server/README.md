@@ -50,6 +50,14 @@ in front of it:
   (401, or a closed WebSocket), so it cannot be used anonymously even if the
   proxy is bypassed. Caddy removes these headers from incoming requests so a
   browser cannot set them itself.
+- Roles come from the user's groups (`X-Forwarded-Groups`), set in `.env`:
+  - **viewer**: anyone who can sign in. Can read, search and export.
+  - **editor**: members of `STRICTDOC_EDITOR_GROUP`. Can also change
+    documents and requirements.
+  - **admin**: members of `STRICTDOC_ADMIN_GROUP`. Can also edit grammars.
+
+  The server checks the role on every request. In the browser, controls the
+  user cannot use are hidden.
 - `GET /healthz` returns `{"status": "ok", "version": ...}`. It takes no locks
   and is only reachable from inside the Docker network.
 
@@ -57,7 +65,6 @@ in front of it:
 
 - StrictDoc knows who is signed in, but does not record it anywhere yet.
   Edits in the files are still anonymous.
-- There are no roles. Everyone who can sign in can edit.
 - Nothing commits or pushes edits automatically.
 
 ## Proxy auth options
@@ -69,11 +76,28 @@ The compose file passes these to `strictdoc server`:
 | `--auth-proxy-user-header`  | Identifies the user. Required on every request. |
 | `--auth-proxy-email-header` | The user's email address. Optional.      |
 | `--auth-proxy-name-header`  | The user's display name. Optional.       |
+| `--auth-proxy-groups-header`| The user's groups, comma-separated.      |
+| `--auth-editor-group`       | Group whose members are editors. Repeatable. |
+| `--auth-admin-group`        | Group whose members are admins. Repeatable.  |
 
 The same settings can go in the project's `strictdoc.toml` under `[server]`
-as `auth_proxy_user_header`, `auth_proxy_email_header` and
-`auth_proxy_name_header`. The command-line options replace all three.
-Without them, the server works as before, with no users.
+as `auth_proxy_user_header`, `auth_proxy_email_header`,
+`auth_proxy_name_header`, `auth_proxy_groups_header`, and the lists
+`auth_editor_groups` and `auth_admin_groups`. The command-line options
+override them. `--auth-proxy-user-header` replaces all three user headers.
+Without any of them, the server works as before: no users, everyone can edit.
+
+If no editor or admin group is set, every user is a viewer, and the server
+logs a warning at startup.
+
+### Checking the groups claim
+
+If an editor can't edit, hover over the initials in the nav bar to see the
+role they got. If it says viewer, your provider is probably not sending the
+groups claim. Depending on the provider, add `groups` to `OIDC_SCOPE`, add a
+groups mapper to the client, or set `OIDC_GROUPS_CLAIM` to the claim your
+provider uses. Group names must match exactly, including case. Some
+providers (e.g. Microsoft Entra ID) send group IDs instead of names.
 
 ## Updating
 

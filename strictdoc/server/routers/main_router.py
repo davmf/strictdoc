@@ -197,6 +197,7 @@ from strictdoc.server.helpers.hierarchical_rw_lock_manager import (
     HierarchicalRWLockManager,
 )
 from strictdoc.server.helpers.http import request_is_for_non_modified_file
+from strictdoc.server.helpers.proxy_auth import require_editor
 from strictdoc.server.helpers.turbo import render_turbo_stream
 
 HTTP_STATUS_BAD_REQUEST = 400
@@ -416,7 +417,11 @@ def create_main_router(
 
     router = APIRouter()
     read_router = APIRouter(dependencies=[Depends(read_lock)])
-    write_router = APIRouter(dependencies=[Depends(write_lock)])
+    # require_editor comes first, so that a refused request never waits for
+    # the global write lock.
+    write_router = APIRouter(
+        dependencies=[Depends(require_editor), Depends(write_lock)]
+    )
 
     @router.get("/")
     def get_root(request: Request) -> Response:

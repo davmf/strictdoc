@@ -1,5 +1,5 @@
 import os
-from typing import Optional
+from typing import List, Optional
 
 from strictdoc.cli.base_command import CLIValidationError
 from strictdoc.helpers.auto_described import auto_described
@@ -24,6 +24,9 @@ class ServerCommandConfig:
         auth_proxy_user_header: Optional[str] = None,
         auth_proxy_email_header: Optional[str] = None,
         auth_proxy_name_header: Optional[str] = None,
+        auth_proxy_groups_header: Optional[str] = None,
+        auth_editor_group: Optional[List[str]] = None,
+        auth_admin_group: Optional[List[str]] = None,
     ):
         self.debug: bool = debug
         self.development: bool = development
@@ -38,6 +41,15 @@ class ServerCommandConfig:
         self.auth_proxy_user_header: Optional[str] = auth_proxy_user_header
         self.auth_proxy_email_header: Optional[str] = auth_proxy_email_header
         self.auth_proxy_name_header: Optional[str] = auth_proxy_name_header
+        self.auth_proxy_groups_header: Optional[str] = auth_proxy_groups_header
+        # Singular parameter names: argparse collects repeated
+        # --auth-editor-group / --auth-admin-group options into these.
+        self.auth_editor_groups: List[str] = (
+            auth_editor_group if auth_editor_group is not None else []
+        )
+        self.auth_admin_groups: List[str] = (
+            auth_admin_group if auth_admin_group is not None else []
+        )
 
     def get_full_input_path(self) -> str:
         return os.path.abspath(self._input_path)
@@ -67,6 +79,7 @@ class ServerCommandConfig:
             self.auth_proxy_user_header,
             self.auth_proxy_email_header,
             self.auth_proxy_name_header,
+            self.auth_proxy_groups_header,
         ):
             if header_ is not None and len(header_.strip()) == 0:
                 raise CLIValidationError(
@@ -81,6 +94,25 @@ class ServerCommandConfig:
                 "--auth-proxy-email-header and --auth-proxy-name-header "
                 "require --auth-proxy-user-header."
             )
+
+        if (
+            len(self.auth_editor_groups) > 0 or len(self.auth_admin_groups) > 0
+        ) and self.auth_proxy_groups_header is None:
+            raise CLIValidationError(
+                "--auth-editor-group and --auth-admin-group require "
+                "--auth-proxy-groups-header."
+            )
+        if self.auth_proxy_groups_header is not None and (
+            self.auth_proxy_user_header is None
+        ):
+            raise CLIValidationError(
+                "--auth-proxy-groups-header requires --auth-proxy-user-header."
+            )
+        for group_ in self.auth_editor_groups + self.auth_admin_groups:
+            if len(group_.strip()) == 0:
+                raise CLIValidationError(
+                    "Provided group name must not be empty."
+                )
 
         if (host_ := self.host) is not None:
             if not is_valid_host(host_):

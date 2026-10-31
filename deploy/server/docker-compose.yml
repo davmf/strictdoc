@@ -44,6 +44,10 @@ services:
       OAUTH2_PROXY_COOKIE_SAMESITE: "lax"
       OAUTH2_PROXY_REVERSE_PROXY: "true"
       OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      # StrictDoc roles come from the groups claim. Some providers only
+      # include it when asked for in the scope.
+      OAUTH2_PROXY_SCOPE: ${OIDC_SCOPE:-openid email profile}
+      OAUTH2_PROXY_OIDC_GROUPS_CLAIM: ${OIDC_GROUPS_CLAIM:-groups}
       # Sends X-Forwarded-User, -Email, -Groups and -Preferred-Username to
       # StrictDoc, replacing any values a browser sent.
       OAUTH2_PROXY_PASS_USER_HEADERS: "true"
@@ -64,12 +68,18 @@ services:
         INSTALL_CHROME: ${INSTALL_CHROME:-true}
     restart: unless-stopped
     # Identify users from oauth2-proxy's headers. Requests without them are
-    # rejected, so the server cannot be used anonymously.
+    # rejected, so the server cannot be used anonymously. Members of the
+    # editor group can edit, members of the admin group can also edit
+    # grammars, everyone else can only read. Repeat --auth-editor-group or
+    # --auth-admin-group to allow more groups.
     command:
       - --watch
       - --auth-proxy-user-header=X-Forwarded-Email
       - --auth-proxy-email-header=X-Forwarded-Email
       - --auth-proxy-name-header=X-Forwarded-Preferred-Username
+      - --auth-proxy-groups-header=X-Forwarded-Groups
+      - --auth-editor-group=${STRICTDOC_EDITOR_GROUP:?set STRICTDOC_EDITOR_GROUP in .env}
+      - --auth-admin-group=${STRICTDOC_ADMIN_GROUP:?set STRICTDOC_ADMIN_GROUP in .env}
     environment:
       # Uvicorn only honours X-Forwarded-For/-Proto from this address.
       FORWARDED_ALLOW_IPS: "172.28.0.10"

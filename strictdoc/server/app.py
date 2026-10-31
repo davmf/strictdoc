@@ -136,6 +136,14 @@ def create_app(*, project_config: ProjectConfig) -> FastAPI:
     # Added last, so that it is the outermost middleware and runs first.
     if project_config.is_auth_proxy_enabled():
         app.add_middleware(ProxyAuthMiddleware, project_config=project_config)
+        if (
+            len(project_config.auth_editor_groups) == 0
+            and len(project_config.auth_admin_groups) == 0
+        ):
+            LOGGER.warning(
+                "Proxy auth is on, but no editor or admin groups are "
+                "configured: every user can only read."
+            )
 
     # Liveness probe for container orchestration and reverse proxies. It takes
     # no locks so that it answers even while the index is being rebuilt.

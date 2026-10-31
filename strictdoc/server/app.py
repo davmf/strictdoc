@@ -12,7 +12,7 @@ from typing import Awaitable, Callable, Generator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 
 from strictdoc import __version__
 from strictdoc.core.project_config import ProjectConfig
@@ -98,23 +98,27 @@ def create_app(*, project_config: ProjectConfig) -> FastAPI:
         "http://localhost:3000",
     ]
 
-    # Uncomment this to enable performance measurements.
-    @app.middleware("http")
-    async def add_process_time_header(  # pylint: disable=unused-variable
-        request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
-        start_time = time.time()
-        response: Response = await call_next(request)
-        time_passed = round(time.time() - start_time, 3)
+    # Print per-request timings only on StrictDoc's own development server
+    # (--development). A deployed server should not write a line per request.
+    if project_config.environment.is_development_mode:
 
-        request_path = request.url.path
-        if len(request.url.query) > 0:
-            request_path += f"?{request.url.query}"
+        @app.middleware("http")
+        async def add_process_time_header(  # pylint: disable=unused-variable
+            request: Request,
+            call_next: Callable[[Request], Awaitable[Response]],
+        ) -> Response:
+            start_time = time.time()
+            response: Response = await call_next(request)
+            time_passed = round(time.time() - start_time, 3)
 
-        print(  # noqa: T201
-            f"PERF:     {request.method} {request_path} {time_passed}s"
-        )
-        return response
+            request_path = request.url.path
+            if len(request.url.query) > 0:
+                request_path += f"?{request.url.query}"
+
+            print(  # noqa: T201
+                f"PERF:     {request.method} {request_path} {time_passed}s"
+            )
+            return response
 
     app.add_middleware(
         CORSMiddleware,
@@ -123,6 +127,12 @@ def create_app(*, project_config: ProjectConfig) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Liveness probe for container orchestration and reverse proxies. It takes
+    # no locks so that it answers even while the index is being rebuilt.
+    @app.get("/healthz")
+    def healthz() -> JSONResponse:  # pylint: disable=unused-variable
+        return JSONResponse({"status": "ok", "version": __version__})
 
     lock_manager = HierarchicalRWLockManager()
 

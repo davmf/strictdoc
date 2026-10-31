@@ -1,0 +1,86 @@
+# StrictDoc behind single sign-on.
+#
+#   browser --HTTPS--> caddy --> oauth2-proxy --> strictdoc
+#
+# Only Caddy publishes ports. StrictDoc is reachable only from oauth2-proxy,
+# which is the only address it trusts for X-Forwarded-* headers.
+# See README.md for setup.
+
+name: strictdoc
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      STRICTDOC_DOMAIN: ${STRICTDOC_DOMAIN:?set STRICTDOC_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - edge
+    depends_on:
+      - oauth2-proxy
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.12.0
+    restart: unless-stopped
+    environment:
+      OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:4180"
+      OAUTH2_PROXY_UPSTREAMS: "http://strictdoc:5111/"
+      OAUTH2_PROXY_PROVIDER: ${OIDC_PROVIDER:-oidc}
+      OAUTH2_PROXY_OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:?set OIDC_ISSUER_URL in .env}
+      OAUTH2_PROXY_CLIENT_ID: ${OIDC_CLIENT_ID:?set OIDC_CLIENT_ID in .env}
+      OAUTH2_PROXY_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?set OIDC_CLIENT_SECRET in .env}
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET:?set OAUTH2_PROXY_COOKIE_SECRET in .env}
+      OAUTH2_PROXY_REDIRECT_URL: "https://${STRICTDOC_DOMAIN}/oauth2/callback"
+      OAUTH2_PROXY_EMAIL_DOMAINS: ${OIDC_EMAIL_DOMAINS:?set OIDC_EMAIL_DOMAINS in .env}
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_COOKIE_SAMESITE: "lax"
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      # Sends X-Forwarded-User, -Email and -Groups to StrictDoc. Nothing reads
+      # them yet; phase 2 will.
+      OAUTH2_PROXY_PASS_USER_HEADERS: "true"
+    networks:
+      edge:
+      internal:
+        ipv4_address: 172.28.0.10
+    depends_on:
+      - strictdoc
+
+  strictdoc:
+    build:
+      context: ../..
+      dockerfile: deploy/server/Dockerfile
+      args:
+        STRICTDOC_UID: ${STRICTDOC_UID:-1000}
+        STRICTDOC_GID: ${STRICTDOC_GID:-1000}
+        INSTALL_CHROME: ${INSTALL_CHROME:-true}
+    restart: unless-stopped
+    environment:
+      # Uvicorn only honours X-Forwarded-For/-Proto from this address.
+      FORWARDED_ALLOW_IPS: "172.28.0.10"
+    volumes:
+      - ${STRICTDOC_PROJECT_DIR:?set STRICTDOC_PROJECT_DIR in .env}:/data
+      - strictdoc_output:/var/lib/strictdoc
+    networks:
+      - internal
+
+networks:
+  edge:
+  internal:
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+
+volumes:
+  caddy_data:
+  caddy_config:
+  strictdoc_output:

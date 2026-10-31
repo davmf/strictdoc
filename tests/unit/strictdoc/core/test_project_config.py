@@ -264,3 +264,47 @@ def test_93_auth_proxy_email_header_requires_user_header():
 def test_94_auth_proxy_empty_header_rejected():
     with pytest.raises(AssertionError):
         _ = ProjectConfig(auth_proxy_user_header="  ")
+
+
+def test_95_auth_groups_from_toml(tmp_path):
+    path_to_config = tmp_path / "strictdoc.toml"
+    path_to_config.write_text(
+        """\
+[project]
+title = "Roles"
+
+[server]
+auth_proxy_user_header = "X-Forwarded-Email"
+auth_proxy_groups_header = "X-Forwarded-Groups"
+auth_editor_groups = ["editors", "writers"]
+auth_admin_groups = ["admins"]
+"""
+    )
+    project_config = ProjectConfigLoader.load_from_path_or_get_default(
+        path_to_config=str(path_to_config)
+    )
+    assert project_config.auth_proxy_groups_header == "X-Forwarded-Groups"
+    assert project_config.auth_editor_groups == ["editors", "writers"]
+    assert project_config.auth_admin_groups == ["admins"]
+
+
+def test_96_auth_groups_require_groups_header():
+    with pytest.raises(AssertionError):
+        _ = ProjectConfig(
+            auth_proxy_user_header="X-Forwarded-Email",
+            auth_editor_groups=["editors"],
+        )
+
+
+def test_97_auth_groups_header_requires_user_header():
+    with pytest.raises(AssertionError):
+        _ = ProjectConfig(auth_proxy_groups_header="X-Forwarded-Groups")
+
+
+def test_98_auth_groups_must_be_names():
+    with pytest.raises(AssertionError):
+        _ = ProjectConfig(
+            auth_proxy_user_header="X-Forwarded-Email",
+            auth_proxy_groups_header="X-Forwarded-Groups",
+            auth_editor_groups=[""],
+        )

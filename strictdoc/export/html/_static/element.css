@@ -714,6 +714,29 @@ sdoc-node[show-anchors] sdoc-anchor:hover .anchor_back_links_number {
   border: 1px solid var(--color-fg-secondary-invert);
 }
 
+/* Roles, with proxy auth only. base.jinja.html sets data-user-role on
+   <body>: "pending" until the user is known, then viewer/editor/admin. The
+   server enforces roles; these rules only hide controls that would fail. */
+
+body[data-user-role]:not([data-user-role="editor"]):not([data-user-role="admin"])
+  a[href^="/actions/"]:not([href^="/actions/show_full_node"]),
+body[data-user-role]:not([data-user-role="editor"]):not([data-user-role="admin"])
+  .action_button--disabled,
+body[data-user-role]:not([data-user-role="editor"]):not([data-user-role="admin"])
+  [data-testid="node-menu-handler"],
+body[data-user-role]:not([data-user-role="editor"]):not([data-user-role="admin"])
+  [data-testid="header-action-menu-handler"],
+body[data-user-role]:not([data-user-role="editor"]):not([data-user-role="admin"])
+  [data-testid="table-add-node-menu"],
+body[data-user-role]:not([data-user-role="editor"]):not([data-user-role="admin"])
+  .editable-cell-indicator,
+body[data-user-role]:not([data-user-role="editor"]):not([data-user-role="admin"])
+  .table-toolbar__btn--edit,
+body[data-user-role]:not([data-user-role="admin"])
+  a[href^="/actions/document/edit_grammar"] {
+  display: none !important;
+}
+
 /* nav_button */
 
 .nav_button {

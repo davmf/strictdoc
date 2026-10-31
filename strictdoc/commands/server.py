@@ -65,6 +65,27 @@ class ServerCommand(BaseCommand):
             help="Name of the request header with the user's display name.",
         )
         command_parser_server.add_argument(
+            "--auth-proxy-groups-header",
+            type=str,
+            help=(
+                "Name of the request header with the user's groups, "
+                "comma-separated. Groups decide the user's role."
+            ),
+        )
+        command_parser_server.add_argument(
+            "--auth-editor-group",
+            action="append",
+            help="Group whose members can edit. Can be given more than once.",
+        )
+        command_parser_server.add_argument(
+            "--auth-admin-group",
+            action="append",
+            help=(
+                "Group whose members can edit and change grammars. Can be "
+                "given more than once."
+            ),
+        )
+        command_parser_server.add_argument(
             "--config",
             type=str,
             help="Path to the StrictDoc TOML config file.",

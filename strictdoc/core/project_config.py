@@ -250,6 +250,12 @@ class ProjectConfig:
         auth_proxy_user_header: Optional[str] = None,
         auth_proxy_email_header: Optional[str] = None,
         auth_proxy_name_header: Optional[str] = None,
+        # Roles of signed-in users come from the groups header: members of
+        # an editor group can edit, members of an admin group can also edit
+        # grammars. Everyone else can only read.
+        auth_proxy_groups_header: Optional[str] = None,
+        auth_editor_groups: Optional[List[str]] = None,
+        auth_admin_groups: Optional[List[str]] = None,
         # Reserved for StrictDoc's internal use.
         _config_last_update: Optional[datetime.datetime] = None,
     ) -> None:
@@ -560,19 +566,45 @@ class ProjectConfig:
             ("auth_proxy_user_header", auth_proxy_user_header),
             ("auth_proxy_email_header", auth_proxy_email_header),
             ("auth_proxy_name_header", auth_proxy_name_header),
+            ("auth_proxy_groups_header", auth_proxy_groups_header),
         ):
             assert header_name_ is None or (
                 isinstance(header_name_, str) and len(header_name_.strip()) > 0
             ), f"config: {option_name_}: must be a header name: {header_name_}."
         assert auth_proxy_user_header is not None or (
-            auth_proxy_email_header is None and auth_proxy_name_header is None
+            auth_proxy_email_header is None
+            and auth_proxy_name_header is None
+            and auth_proxy_groups_header is None
         ), (
-            "config: auth_proxy_email_header and auth_proxy_name_header "
-            "require auth_proxy_user_header."
+            "config: auth_proxy_email_header, auth_proxy_name_header and "
+            "auth_proxy_groups_header require auth_proxy_user_header."
+        )
+        auth_editor_groups_: List[str] = (
+            auth_editor_groups if auth_editor_groups is not None else []
+        )
+        auth_admin_groups_: List[str] = (
+            auth_admin_groups if auth_admin_groups is not None else []
+        )
+        for option_name_, groups_ in (
+            ("auth_editor_groups", auth_editor_groups_),
+            ("auth_admin_groups", auth_admin_groups_),
+        ):
+            assert isinstance(groups_, list) and all(
+                isinstance(group_, str) and len(group_.strip()) > 0
+                for group_ in groups_
+            ), f"config: {option_name_}: must be a list of group names."
+        assert auth_proxy_groups_header is not None or (
+            len(auth_editor_groups_) == 0 and len(auth_admin_groups_) == 0
+        ), (
+            "config: auth_editor_groups and auth_admin_groups require "
+            "auth_proxy_groups_header."
         )
         self.auth_proxy_user_header: Optional[str] = auth_proxy_user_header
         self.auth_proxy_email_header: Optional[str] = auth_proxy_email_header
         self.auth_proxy_name_header: Optional[str] = auth_proxy_name_header
+        self.auth_proxy_groups_header: Optional[str] = auth_proxy_groups_header
+        self.auth_editor_groups: List[str] = auth_editor_groups_
+        self.auth_admin_groups: List[str] = auth_admin_groups_
 
         self.config_last_update: Optional[datetime.datetime] = (
             _config_last_update
@@ -785,6 +817,14 @@ class ProjectConfig:
             self.auth_proxy_user_header = server_config.auth_proxy_user_header
             self.auth_proxy_email_header = server_config.auth_proxy_email_header
             self.auth_proxy_name_header = server_config.auth_proxy_name_header
+        if server_config.auth_proxy_groups_header is not None:
+            self.auth_proxy_groups_header = (
+                server_config.auth_proxy_groups_header
+            )
+        if len(server_config.auth_editor_groups) > 0:
+            self.auth_editor_groups = list(server_config.auth_editor_groups)
+        if len(server_config.auth_admin_groups) > 0:
+            self.auth_admin_groups = list(server_config.auth_admin_groups)
 
         self.input_paths = [server_config.get_full_input_path()]
         if self.source_root_path is None:
@@ -1471,6 +1511,9 @@ class ProjectConfigLoader:
         auth_proxy_user_header: Optional[str] = None
         auth_proxy_email_header: Optional[str] = None
         auth_proxy_name_header: Optional[str] = None
+        auth_proxy_groups_header: Optional[str] = None
+        auth_editor_groups: Optional[List[str]] = None
+        auth_admin_groups: Optional[List[str]] = None
         include_doc_paths: List[str] = []
         exclude_doc_paths: List[str] = []
         source_root_path = None
@@ -1641,6 +1684,11 @@ class ProjectConfigLoader:
             auth_proxy_name_header = server_content.get(
                 "auth_proxy_name_header", None
             )
+            auth_proxy_groups_header = server_content.get(
+                "auth_proxy_groups_header", None
+            )
+            auth_editor_groups = server_content.get("auth_editor_groups", None)
+            auth_admin_groups = server_content.get("auth_admin_groups", None)
 
         if "reqif" in config_dict:
             reqif_content = config_dict["reqif"]
@@ -1661,6 +1709,9 @@ class ProjectConfigLoader:
             auth_proxy_user_header=auth_proxy_user_header,
             auth_proxy_email_header=auth_proxy_email_header,
             auth_proxy_name_header=auth_proxy_name_header,
+            auth_proxy_groups_header=auth_proxy_groups_header,
+            auth_editor_groups=auth_editor_groups,
+            auth_admin_groups=auth_admin_groups,
             include_doc_paths=include_doc_paths,
             exclude_doc_paths=exclude_doc_paths,
             source_root_path=source_root_path,

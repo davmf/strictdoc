@@ -1,0 +1,10 @@
+[DOCUMENT]
+MID: 2e8d2ad5e1d34a3a9c0f6c5f1d6b9a01
+TITLE: Sample document
+OPTIONS:
+  ENABLE_MID: True
+
+[REQUIREMENT]
+MID: 7b1f0c3e9a2d4e5f8a6b0c1d2e3f4a5b
+TITLE: Requirement 1
+STATEMENT: System shall do 1.

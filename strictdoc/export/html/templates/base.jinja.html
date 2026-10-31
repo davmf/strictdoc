@@ -45,7 +45,8 @@
   {% endblock head %}
 </head>
 
-<body data-viewtype="{%- block viewtype -%}{%- endblock viewtype -%}" data-turbo="false">
+<body data-viewtype="{%- block viewtype -%}{%- endblock viewtype -%}" data-turbo="false"
+  {%- if view_object.project_config.is_auth_proxy_enabled() %} data-user-role="pending"{% endif %}>
 
 <div class="mars">
   {% if view_object.project_config.is_running_on_server %}
@@ -112,6 +113,34 @@
   <div id="modal"></div>
   <div id="confirm"></div>
   {% block scripts %}{% endblock scripts %}
+
+  {%- if view_object.project_config.is_auth_proxy_enabled() %}
+  {#- Pages are cached and shared by all users, so the user and their role
+      are fetched on each load. Until then, the body's "pending" role hides
+      edit controls like the viewer role does. The server checks roles on
+      every request; this only hides what the user cannot use. -#}
+  <script>
+    fetch("/current_user", { cache: "no-store" })
+      .then((response) => (response.ok ? response.text() : ""))
+      .then((badge) => {
+        const slot = document.getElementById("nav_current_user");
+        if (slot !== null) {
+          slot.innerHTML = badge;
+        }
+        const badgeElement = slot !== null
+          ? slot.querySelector("[data-user-role]")
+          : new DOMParser()
+              .parseFromString(badge, "text/html")
+              .querySelector("[data-user-role]");
+        document.body.dataset.userRole = badgeElement !== null
+          ? badgeElement.dataset.userRole
+          : "viewer";
+      })
+      .catch(() => {
+        document.body.dataset.userRole = "viewer";
+      });
+  </script>
+  {%- endif %}
 
 </body>
 </html>

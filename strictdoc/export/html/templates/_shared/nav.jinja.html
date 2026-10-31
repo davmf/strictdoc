@@ -105,15 +105,7 @@
 {%- endif -%}
 
 {%- if view_object.project_config.is_auth_proxy_enabled() -%}
-  {#- Pages are cached, so the per-user badge is fetched on each load. -#}
+  {#- Filled by the script in base.jinja.html. -#}
   <div class="nav_user_slot" id="nav_current_user"></div>
-  <script>
-    fetch("/current_user", { cache: "no-store" })
-      .then((response) => (response.ok ? response.text() : ""))
-      .then((badge) => {
-        document.getElementById("nav_current_user").innerHTML = badge;
-      })
-      .catch(() => {});
-  </script>
 {%- endif -%}
 </div>

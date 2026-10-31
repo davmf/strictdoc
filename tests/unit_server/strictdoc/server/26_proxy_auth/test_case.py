@@ -76,7 +76,7 @@ def test_04_current_user_badge(client: TestClient):
     assert 'data-testid="nav-current-user"' in response.text
     assert ">AL<" in response.text
     assert (
-        'title="Signed in as Ada Lovelace (ada.lovelace@example.com)"'
+        'title="Signed in as Ada Lovelace (ada.lovelace@example.com), viewer"'
         in response.text
     )
 

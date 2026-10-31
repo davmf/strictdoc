@@ -693,6 +693,27 @@ sdoc-node[show-anchors] sdoc-anchor:hover .anchor_back_links_number {
   column-gap: var(--base-rhythm);
 }
 
+.nav_user_slot {
+  margin-top: auto;
+  display: flex;
+  justify-content: center;
+  padding-bottom: var(--base-rhythm);
+}
+
+.nav_user {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: calc(var(--base-rhythm) * 4);
+  height: calc(var(--base-rhythm) * 4);
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: bold;
+  cursor: default;
+  color: var(--color-bg-contrast);
+  border: 1px solid var(--color-fg-secondary-invert);
+}
+
 /* nav_button */
 
 .nav_button {

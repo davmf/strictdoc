@@ -21,6 +21,9 @@ class ServerCommandConfig:
         host: Optional[str],
         port: Optional[int],
         watch: bool = False,
+        auth_proxy_user_header: Optional[str] = None,
+        auth_proxy_email_header: Optional[str] = None,
+        auth_proxy_name_header: Optional[str] = None,
     ):
         self.debug: bool = debug
         self.development: bool = development
@@ -32,6 +35,9 @@ class ServerCommandConfig:
         self.host: Optional[str] = host
         self.port: Optional[int] = port
         self.watch: bool = watch
+        self.auth_proxy_user_header: Optional[str] = auth_proxy_user_header
+        self.auth_proxy_email_header: Optional[str] = auth_proxy_email_header
+        self.auth_proxy_name_header: Optional[str] = auth_proxy_name_header
 
     def get_full_input_path(self) -> str:
         return os.path.abspath(self._input_path)
@@ -55,6 +61,25 @@ class ServerCommandConfig:
             raise CLIValidationError(
                 "Provided path to a configuration file does not exist: "
                 f"{self._config_path}"
+            )
+
+        for header_ in (
+            self.auth_proxy_user_header,
+            self.auth_proxy_email_header,
+            self.auth_proxy_name_header,
+        ):
+            if header_ is not None and len(header_.strip()) == 0:
+                raise CLIValidationError(
+                    "Provided auth proxy header name must not be empty."
+                )
+
+        if (
+            self.auth_proxy_email_header is not None
+            or self.auth_proxy_name_header is not None
+        ) and self.auth_proxy_user_header is None:
+            raise CLIValidationError(
+                "--auth-proxy-email-header and --auth-proxy-name-header "
+                "require --auth-proxy-user-header."
             )
 
         if (host_ := self.host) is not None:

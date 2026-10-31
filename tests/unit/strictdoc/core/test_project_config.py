@@ -217,3 +217,50 @@ def test_82_lazy_document_loading_threshold_zero_disables():
 def test_83_lazy_document_loading_threshold_negative_rejected():
     with pytest.raises(AssertionError):
         _ = ProjectConfig(lazy_document_loading_threshold=-1)
+
+
+def test_90_auth_proxy_headers_from_toml(tmp_path):
+    path_to_config = tmp_path / "strictdoc.toml"
+    path_to_config.write_text(
+        """\
+[project]
+title = "Proxy auth"
+
+[server]
+auth_proxy_user_header = "X-Forwarded-Email"
+auth_proxy_name_header = "X-Forwarded-Preferred-Username"
+"""
+    )
+    project_config = ProjectConfigLoader.load_from_path_or_get_default(
+        path_to_config=str(path_to_config)
+    )
+    assert project_config.auth_proxy_user_header == "X-Forwarded-Email"
+    assert project_config.auth_proxy_email_header is None
+    assert (
+        project_config.auth_proxy_name_header
+        == "X-Forwarded-Preferred-Username"
+    )
+
+
+def test_91_auth_proxy_disabled_by_default():
+    project_config = ProjectConfig.default_config()
+    project_config.is_running_on_server = True
+    assert project_config.auth_proxy_user_header is None
+    assert not project_config.is_auth_proxy_enabled()
+
+
+def test_92_auth_proxy_enabled_only_on_server():
+    project_config = ProjectConfig(auth_proxy_user_header="X-Forwarded-Email")
+    assert not project_config.is_auth_proxy_enabled()
+    project_config.is_running_on_server = True
+    assert project_config.is_auth_proxy_enabled()
+
+
+def test_93_auth_proxy_email_header_requires_user_header():
+    with pytest.raises(AssertionError):
+        _ = ProjectConfig(auth_proxy_email_header="X-Forwarded-Email")
+
+
+def test_94_auth_proxy_empty_header_rejected():
+    with pytest.raises(AssertionError):
+        _ = ProjectConfig(auth_proxy_user_header="  ")

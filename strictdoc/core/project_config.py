@@ -244,6 +244,12 @@ class ProjectConfig:
         # By default, the server runs project actions only when it listens on
         # a loopback host. True allows runs from other hosts too.
         allow_remote_project_actions: bool = False,
+        # Names of the request headers that an authenticating reverse proxy
+        # (e.g. oauth2-proxy) sets for the signed-in user. When the user
+        # header is set, the server rejects requests that do not carry it.
+        auth_proxy_user_header: Optional[str] = None,
+        auth_proxy_email_header: Optional[str] = None,
+        auth_proxy_name_header: Optional[str] = None,
         # Reserved for StrictDoc's internal use.
         _config_last_update: Optional[datetime.datetime] = None,
     ) -> None:
@@ -550,6 +556,24 @@ class ProjectConfig:
         )
         self.allow_remote_project_actions: bool = allow_remote_project_actions
 
+        for option_name_, header_name_ in (
+            ("auth_proxy_user_header", auth_proxy_user_header),
+            ("auth_proxy_email_header", auth_proxy_email_header),
+            ("auth_proxy_name_header", auth_proxy_name_header),
+        ):
+            assert header_name_ is None or (
+                isinstance(header_name_, str) and len(header_name_.strip()) > 0
+            ), f"config: {option_name_}: must be a header name: {header_name_}."
+        assert auth_proxy_user_header is not None or (
+            auth_proxy_email_header is None and auth_proxy_name_header is None
+        ), (
+            "config: auth_proxy_email_header and auth_proxy_name_header "
+            "require auth_proxy_user_header."
+        )
+        self.auth_proxy_user_header: Optional[str] = auth_proxy_user_header
+        self.auth_proxy_email_header: Optional[str] = auth_proxy_email_header
+        self.auth_proxy_name_header: Optional[str] = auth_proxy_name_header
+
         self.config_last_update: Optional[datetime.datetime] = (
             _config_last_update
         )
@@ -756,6 +780,11 @@ class ProjectConfig:
             self.server_host = server_host_
         if (server_port_ := server_config.port) is not None:
             self.server_port = server_port_
+        # The CLI sets all proxy headers together, replacing the config's.
+        if server_config.auth_proxy_user_header is not None:
+            self.auth_proxy_user_header = server_config.auth_proxy_user_header
+            self.auth_proxy_email_header = server_config.auth_proxy_email_header
+            self.auth_proxy_name_header = server_config.auth_proxy_name_header
 
         self.input_paths = [server_config.get_full_input_path()]
         if self.source_root_path is None:
@@ -1098,6 +1127,12 @@ class ProjectConfig:
             and ProjectFeature.PROJECT_ACTIONS in self.project_features
         )
 
+    def is_auth_proxy_enabled(self) -> bool:
+        return (
+            self.is_running_on_server
+            and self.auth_proxy_user_header is not None
+        )
+
     def get_project_action(self, handle: str) -> Optional[ProjectAction]:
         for action_ in self.project_actions:
             if action_.handle == handle:
@@ -1433,6 +1468,9 @@ class ProjectConfigLoader:
         lazy_document_loading_threshold = (
             ProjectConfigDefault.DEFAULT_LAZY_DOCUMENT_LOADING_THRESHOLD
         )
+        auth_proxy_user_header: Optional[str] = None
+        auth_proxy_email_header: Optional[str] = None
+        auth_proxy_name_header: Optional[str] = None
         include_doc_paths: List[str] = []
         exclude_doc_paths: List[str] = []
         source_root_path = None
@@ -1594,6 +1632,15 @@ class ProjectConfigLoader:
                 "lazy_document_loading_threshold",
                 lazy_document_loading_threshold,
             )
+            auth_proxy_user_header = server_content.get(
+                "auth_proxy_user_header", None
+            )
+            auth_proxy_email_header = server_content.get(
+                "auth_proxy_email_header", None
+            )
+            auth_proxy_name_header = server_content.get(
+                "auth_proxy_name_header", None
+            )
 
         if "reqif" in config_dict:
             reqif_content = config_dict["reqif"]
@@ -1611,6 +1658,9 @@ class ProjectConfigLoader:
             server_host=server_host,
             server_port=server_port,
             lazy_document_loading_threshold=lazy_document_loading_threshold,
+            auth_proxy_user_header=auth_proxy_user_header,
+            auth_proxy_email_header=auth_proxy_email_header,
+            auth_proxy_name_header=auth_proxy_name_header,
             include_doc_paths=include_doc_paths,
             exclude_doc_paths=exclude_doc_paths,
             source_root_path=source_root_path,

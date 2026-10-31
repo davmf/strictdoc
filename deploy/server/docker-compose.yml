@@ -44,8 +44,8 @@ services:
       OAUTH2_PROXY_COOKIE_SAMESITE: "lax"
       OAUTH2_PROXY_REVERSE_PROXY: "true"
       OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
-      # Sends X-Forwarded-User, -Email and -Groups to StrictDoc. Nothing reads
-      # them yet; phase 2 will.
+      # Sends X-Forwarded-User, -Email, -Groups and -Preferred-Username to
+      # StrictDoc, replacing any values a browser sent.
       OAUTH2_PROXY_PASS_USER_HEADERS: "true"
     networks:
       edge:
@@ -63,6 +63,13 @@ services:
         STRICTDOC_GID: ${STRICTDOC_GID:-1000}
         INSTALL_CHROME: ${INSTALL_CHROME:-true}
     restart: unless-stopped
+    # Identify users from oauth2-proxy's headers. Requests without them are
+    # rejected, so the server cannot be used anonymously.
+    command:
+      - --watch
+      - --auth-proxy-user-header=X-Forwarded-Email
+      - --auth-proxy-email-header=X-Forwarded-Email
+      - --auth-proxy-name-header=X-Forwarded-Preferred-Username
     environment:
       # Uvicorn only honours X-Forwarded-For/-Proto from this address.
       FORWARDED_ALLOW_IPS: "172.28.0.10"

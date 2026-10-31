@@ -46,6 +46,25 @@ class ServerCommand(BaseCommand):
             ),
         )
         command_parser_server.add_argument(
+            "--auth-proxy-user-header",
+            type=str,
+            help=(
+                "Name of the request header in which an authenticating "
+                "reverse proxy passes the signed-in user. When set, requests "
+                "without it are rejected."
+            ),
+        )
+        command_parser_server.add_argument(
+            "--auth-proxy-email-header",
+            type=str,
+            help="Name of the request header with the user's email address.",
+        )
+        command_parser_server.add_argument(
+            "--auth-proxy-name-header",
+            type=str,
+            help="Name of the request header with the user's display name.",
+        )
+        command_parser_server.add_argument(
             "--config",
             type=str,
             help="Path to the StrictDoc TOML config file.",

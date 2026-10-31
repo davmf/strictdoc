@@ -44,17 +44,36 @@ in front of it:
   anyone who can sign in could run the configured commands.
 - The StrictDoc container has no internet access. Only oauth2-proxy and Caddy
   can reach the outside.
+- StrictDoc identifies the user from oauth2-proxy's `X-Forwarded-Email` and
+  `X-Forwarded-Preferred-Username` headers, and shows their initials at the
+  bottom of the nav bar. It rejects any request without `X-Forwarded-Email`
+  (401, or a closed WebSocket), so it cannot be used anonymously even if the
+  proxy is bypassed. Caddy removes these headers from incoming requests so a
+  browser cannot set them itself.
 - `GET /healthz` returns `{"status": "ok", "version": ...}`. It takes no locks
   and is only reachable from inside the Docker network.
 
 ## Not done yet
 
-- StrictDoc does not know who is signed in. All edits are anonymous.
-  oauth2-proxy already sends `X-Forwarded-User`, `X-Forwarded-Email` and
-  `X-Forwarded-Groups`, and StrictDoc only accepts forwarded headers from
-  oauth2-proxy's fixed address (`172.28.0.10`).
+- StrictDoc knows who is signed in, but does not record it anywhere yet.
+  Edits in the files are still anonymous.
 - There are no roles. Everyone who can sign in can edit.
 - Nothing commits or pushes edits automatically.
+
+## Proxy auth options
+
+The compose file passes these to `strictdoc server`:
+
+| Option                      | Purpose                                  |
+|-----------------------------|------------------------------------------|
+| `--auth-proxy-user-header`  | Identifies the user. Required on every request. |
+| `--auth-proxy-email-header` | The user's email address. Optional.      |
+| `--auth-proxy-name-header`  | The user's display name. Optional.       |
+
+The same settings can go in the project's `strictdoc.toml` under `[server]`
+as `auth_proxy_user_header`, `auth_proxy_email_header` and
+`auth_proxy_name_header`. The command-line options replace all three.
+Without them, the server works as before, with no users.
 
 ## Updating
 

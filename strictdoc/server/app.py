@@ -12,7 +12,7 @@ from typing import Awaitable, Callable, Generator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from starlette.responses import HTMLResponse, JSONResponse, Response
 
 from strictdoc import __version__
 from strictdoc.core.project_config import ProjectConfig
@@ -25,6 +25,11 @@ from strictdoc.helpers.pickle import pickle_load
 from strictdoc.server.config import SDocServerEnvVariable
 from strictdoc.server.helpers.hierarchical_rw_lock_manager import (
     HierarchicalRWLockManager,
+)
+from strictdoc.server.helpers.proxy_auth import (
+    ProxyAuthMiddleware,
+    get_current_user,
+    render_current_user_badge,
 )
 from strictdoc.server.routers.main_router import create_main_router
 from strictdoc.server.routers.other_router import create_other_router
@@ -128,11 +133,23 @@ def create_app(*, project_config: ProjectConfig) -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Added last, so that it is the outermost middleware and runs first.
+    if project_config.is_auth_proxy_enabled():
+        app.add_middleware(ProxyAuthMiddleware, project_config=project_config)
+
     # Liveness probe for container orchestration and reverse proxies. It takes
     # no locks so that it answers even while the index is being rebuilt.
     @app.get("/healthz")
     def healthz() -> JSONResponse:  # pylint: disable=unused-variable
         return JSONResponse({"status": "ok", "version": __version__})
+
+    @app.get("/current_user")
+    def current_user(request: Request) -> HTMLResponse:  # pylint: disable=unused-variable
+        # The badge differs per user, so it must never be cached.
+        return HTMLResponse(
+            render_current_user_badge(get_current_user(request)),
+            headers={"Cache-Control": "no-store"},
+        )
 
     lock_manager = HierarchicalRWLockManager()
 

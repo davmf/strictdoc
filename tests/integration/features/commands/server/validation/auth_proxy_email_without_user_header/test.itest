@@ -1,0 +1,4 @@
+RUN: %mkdir %T/
+RUN: %expect_exit 1 %strictdoc server --auth-proxy-email-header X-Forwarded-Email . | filecheck %s --dump-input=fail
+
+CHECK: error: --auth-proxy-email-header and --auth-proxy-name-header require --auth-proxy-user-header.

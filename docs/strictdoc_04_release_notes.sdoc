@@ -95,6 +95,13 @@ each trace can record the version of its target. With
 changed item when it saves a file. StrictDoc warns about traces whose target
 has a different version. The ``Mark traces reviewed`` action of the Web UI
 updates them.
+
+8\) SysML diagrams can be drawn with PlantUML in the browser. With
+``SysMLFormat(diagram_engine="plantuml")``, each SysML document shows a
+PlantUML diagram of its file instead of the Mermaid diagram, and each
+requirement shows a trace diagram. The bundled PlantUML engine is now a
+build of PlantUML with SysML v2 support. Existing PlantUML diagrams keep
+working.
 <<<
 
 [[/SECTION]]

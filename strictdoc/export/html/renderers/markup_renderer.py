@@ -14,6 +14,11 @@ from strictdoc.backend.sdoc.models.document import SDocDocument
 from strictdoc.backend.sdoc.models.inline_link import InlineLink
 from strictdoc.backend.sdoc.models.model import RequirementFieldName
 from strictdoc.backend.sdoc.models.node import SDocNode, SDocNodeField
+from strictdoc.backend.sysml import node_data, plantuml_diagram
+from strictdoc.backend.sysml.sysml_format import (
+    SysMLFormat,
+    uses_plantuml_diagrams,
+)
 from strictdoc.core.project_config import ProjectConfig
 from strictdoc.core.traceability_index import TraceabilityIndex
 from strictdoc.export.html.document_type import DocumentType
@@ -71,6 +76,7 @@ class MarkupRenderer:
             context_document=context_document,
             flat_assets=flat_assets,
             primary_markup=markup,
+            project_config=config,
         )
 
     def __init__(
@@ -83,6 +89,7 @@ class MarkupRenderer:
         context_document: Optional[SDocDocument],
         flat_assets: bool = False,
         primary_markup: Optional[str] = None,
+        project_config: Optional[ProjectConfig] = None,
     ) -> None:
         assert isinstance(traceability_index, TraceabilityIndex)
         assert isinstance(link_renderer, LinkRenderer)
@@ -96,6 +103,7 @@ class MarkupRenderer:
         self.link_renderer: LinkRenderer = link_renderer
         self.context_document: Optional[SDocDocument] = context_document
         self.flat_assets: bool = flat_assets
+        self.project_config: Optional[ProjectConfig] = project_config
 
         # Cache of fragment writers keyed by markup string. Pre-populated with
         # the primary writer so the dispatch method reuses it without creating
@@ -159,7 +167,41 @@ class MarkupRenderer:
         self, document_type: DocumentType, node: SDocNode
     ) -> Markup:
         assert isinstance(node, SDocNode)
-        return self.render_node_field(document_type, node.get_content_field())
+        if not self._uses_plantuml_diagrams(node):
+            return self.render_node_field(
+                document_type, node.get_content_field()
+            )
+        # SysML with the PlantUML diagram engine: the diagram node shows the
+        # PlantUML diagram of the file, and each requirement of the document
+        # screen shows its trace diagram below the statement.
+        document = node.get_document()
+        assert isinstance(document, SDocDocument)
+        if node_data.is_diagram(node):
+            return plantuml_diagram.render_document_diagram(
+                document, self.traceability_index
+            )
+        statement = self.render_node_field(
+            document_type, node.get_content_field()
+        )
+        if document_type == DocumentType.DOCUMENT and (
+            plantuml_diagram.has_trace_diagram(node)
+        ):
+            return statement + plantuml_diagram.render_trace_diagram(node)
+        return statement
+
+    def _uses_plantuml_diagrams(self, node: SDocNode) -> bool:
+        if self.project_config is None or not any(
+            isinstance(format_, SysMLFormat)
+            and format_.diagram_engine == plantuml_diagram.PLANTUML_ENGINE
+            for format_ in self.project_config.formats
+        ):
+            return False
+        if node.ng_document_reference is None:
+            return False
+        document = node.get_document()
+        return isinstance(document, SDocDocument) and uses_plantuml_diagrams(
+            self.project_config, document
+        )
 
     def render_truncated_node_statement(
         self, document_type: DocumentType, node: SDocNode

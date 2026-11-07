@@ -1,0 +1,32 @@
+#
+# Export SysML documents with the PlantUML diagram engine.
+#
+# The diagram node of each document carries the SysML files that its
+# diagrams need, and a block that plantuml.js renders with the options of
+# the view. Each requirement has a trace diagram that uses the same files.
+# No Mermaid diagram is written.
+#
+
+RUN: %strictdoc export %S --formats=html --output-dir %T --config %S/strictdoc_config.py | filecheck %s --dump-input=fail
+CHECK: Export completed.
+
+RUN: %cat %T/html/%THIS_TEST_FOLDER/requirements.html | filecheck %s --dump-input=fail --check-prefix CHECK-REQ
+CHECK-REQ: plantuml/plantuml-core.js
+CHECK-REQ: <div class="sysml_sources" data-sysml-set="requirements.sysml" hidden>
+CHECK-REQ-NEXT: <script type="text/sysml" data-name="requirements.sysml">package 'PlantUML requirements' {
+CHECK-REQ: with a \u003C/script> tag.
+CHECK-REQ: <script type="text/sysml" data-name="design.sysml">package 'PlantUML design' {
+CHECK-REQ: satisfy 'PUML-REQ-1' by heater;
+CHECK-REQ: </div>
+CHECK-REQ-NEXT: <div class="sysml_diagram" data-testid="sysml-diagram" data-sysml-set="requirements.sysml" data-sysml-options="view=requirements root=&quot;PlantUML requirements&quot;"></div>
+CHECK-REQ: <div class="sysml_diagram" data-testid="sysml-diagram" data-sysml-set="requirements.sysml" data-sysml-options="view=requirements focus=PUML-REQ-1 depth=1" data-sysml-lazy="true"></div>
+
+RUN: %cat %T/html/%THIS_TEST_FOLDER/requirements.html | filecheck %s --dump-input=fail --check-prefix CHECK-NO-MERMAID
+CHECK-NO-MERMAID-NOT: <pre class="mermaid">
+
+RUN: %cat %T/html/%THIS_TEST_FOLDER/design.html | filecheck %s --dump-input=fail --check-prefix CHECK-DESIGN
+CHECK-DESIGN: <div class="sysml_sources" data-sysml-set="design.sysml" hidden>
+CHECK-DESIGN-NEXT: <script type="text/sysml" data-name="design.sysml">
+CHECK-DESIGN: <script type="text/sysml" data-name="requirements.sysml">
+CHECK-DESIGN: data-sysml-set="design.sysml" data-sysml-options="view=definitions root=&quot;PlantUML design&quot;"
+CHECK-DESIGN-NOT: data-sysml-lazy

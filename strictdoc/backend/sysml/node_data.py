@@ -33,6 +33,9 @@ and the shared model classes stay unchanged.
   the file, by qualified name. See choices.py.
 - Choice types: per requirements document, the type text of each field
   whose attributes hold enumeration literals, by field title.
+- Packages: per document, the names of the top-level packages of the file
+  and the targets of all its imports, at any depth. The PlantUML diagrams
+  use them to find the files that a file imports (see plantuml_diagram.py).
 """
 
 import hashlib
@@ -60,6 +63,8 @@ _STATEMENT_OFFSET_KEY = "ng_sysml_statement_offset"
 _CANDIDATE_UIDS_KEY = "ng_sysml_candidate_uids"
 _ENUM_DEFINITIONS_KEY = "ng_sysml_enum_definitions"
 _CHOICE_TYPES_KEY = "ng_sysml_choice_types"
+_PACKAGE_NAMES_KEY = "ng_sysml_package_names"
+_IMPORT_TARGETS_KEY = "ng_sysml_import_targets"
 
 
 def set_attribute_types(
@@ -93,6 +98,23 @@ def set_derivation_prefix(document: SDocDocument, is_enabled: bool) -> None:
 def get_derivation_prefix(document: SDocDocument) -> bool:
     value: Any = getattr(document, _DERIVATION_PREFIX_KEY, False)
     return bool(value)
+
+
+def set_packages(
+    document: SDocDocument, package_names: List[str], import_targets: List[str]
+) -> None:
+    setattr(document, _PACKAGE_NAMES_KEY, list(package_names))
+    setattr(document, _IMPORT_TARGETS_KEY, list(import_targets))
+
+
+def get_package_names(document: SDocDocument) -> List[str]:
+    value: Any = getattr(document, _PACKAGE_NAMES_KEY, None)
+    return list(value) if value is not None else []
+
+
+def get_import_targets(document: SDocDocument) -> List[str]:
+    value: Any = getattr(document, _IMPORT_TARGETS_KEY, None)
+    return list(value) if value is not None else []
 
 
 def set_is_diagram(node: SDocNode) -> None:

@@ -5907,6 +5907,46 @@ file.
 [[/SECTION]]
 
 [[SECTION]]
+MID: dcd6e3c28e8042f7ae4508f235180e62
+TITLE: PlantUML diagrams
+
+[TEXT]
+MID: a870488c6037470397811aa4ed49b23d
+STATEMENT: >>>
+The SysML format can draw the diagrams with PlantUML instead of Mermaid:
+
+.. code-block:: python
+
+    SysMLFormat(diagram_engine="plantuml")
+
+The default is ``diagram_engine="mermaid"``. With ``plantuml``:
+
+- The diagram of a design package is a class diagram of the definitions of
+  its top-level package (the PlantUML view ``view=definitions``).
+- The diagram of a requirements package shows its requirements and the
+  relations between them (``view=requirements``).
+- A file that imports one of the PlantUML SysML profiles, such as
+  ``StateMachineProfile``, is drawn by its profile instead, for example as a
+  state diagram.
+- Each requirement of the document screen has a trace diagram below its
+  statement: the requirement and the elements one relation away from it
+  (``view=requirements focus=<UID> depth=1``), laid out with ELK. It is drawn
+  when it scrolls into view.
+
+The browser draws the diagrams with the PlantUML engine that StrictDoc
+includes. The page carries the text of the file, of the files that it imports,
+and of the files of the nodes that its nodes have relations with, so that a
+reference to a requirement in another file resolves. A diagram that PlantUML
+cannot draw shows the error message in its place.
+
+The engine is a build of PlantUML with SysML v2 support, distributed under the
+GNU General Public License v3.0 or later. See
+``strictdoc/features/plantuml/assets/plantuml/README.txt``.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
 MID: 65fdbcc5ea6445e4ba0b7037fa2b8b6b
 TITLE: Syntax errors
 

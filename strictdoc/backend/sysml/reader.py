@@ -36,7 +36,8 @@ Design package (autogen, edited in the web UI through editor.py):
 
 Both kinds of documents start with an autogen TEXT node that shows a Mermaid
 diagram of the file (see diagram.py). The writer skips this node, and the
-format rebuilds it after every save.
+format rebuilds it after every save. With the PlantUML diagram engine, the
+HTML export shows a PlantUML diagram in its place (see plantuml_diagram.py).
 
 Node MIDs are derived from the file's relative path and the UID or qualified
 name, so they stay stable across reloads.
@@ -66,7 +67,12 @@ from strictdoc.backend.sdoc.models.node import (
 )
 from strictdoc.backend.sdoc.models.reference import ParentReqReference
 from strictdoc.backend.sdoc.pickle_cache import PickleCache
-from strictdoc.backend.sysml import choices, node_data, versioning
+from strictdoc.backend.sysml import (
+    choices,
+    node_data,
+    plantuml_diagram,
+    versioning,
+)
 from strictdoc.backend.sysml.diagram import (
     as_rst_raw_html,
     create_mermaid_diagram,
@@ -165,7 +171,7 @@ DESIGN_TAGS: Dict[Tuple[str, bool], str] = {
 
 # Part of the pickle cache key. Bump it when the reader output changes, so
 # that cached documents built by an older reader are not reused.
-SYSML_CACHE_KIND = "sysml-reader-13"
+SYSML_CACHE_KIND = "sysml-reader-14"
 
 # Specialisation operators that name a type of the element. Redefinition
 # (`:>>`) and subsetting name features, not types.
@@ -236,6 +242,9 @@ class SysMLReader:
                 model, file_path=file_path, relative_path=relative_path
             )
         _update_diagram_node(document, model)
+        node_data.set_packages(
+            document, *plantuml_diagram.collect_packages(model)
+        )
         node_data.set_enum_definitions(
             document, choices.collect_enum_definitions(model)
         )
@@ -252,6 +261,9 @@ class SysMLReader:
         document_meta = assert_cast(document.meta, DocumentMeta)
         model = SysMLParser.parse_file(document_meta.input_doc_full_path)
         _update_diagram_node(document, model)
+        node_data.set_packages(
+            document, *plantuml_diagram.collect_packages(model)
+        )
 
 
 def is_requirements_model(model: SysMLModel) -> bool:

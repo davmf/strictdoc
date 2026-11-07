@@ -16,6 +16,12 @@ svg[id*="mermaid"] span {
   cursor: text;
 }
 
+/* SysML diagram that PlantUML could not draw, see plantuml.js: */
+.sysml_diagram__error {
+  color: var(--color-danger);
+  white-space: pre-wrap;
+}
+
 /* typography */
 
 h1 { font-size: 2em; }

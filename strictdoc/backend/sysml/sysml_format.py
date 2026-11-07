@@ -13,13 +13,22 @@ versioning.py and version_tracking.py.
 
 Requirement attributes typed by an `enum def` are SingleChoice fields, which
 the edit form shows as drop-down lists. See choices.py.
+
+SysMLFormat(diagram_engine="plantuml") draws the diagrams of the documents
+with PlantUML in the browser instead of Mermaid, and adds a trace diagram to
+each requirement. See plantuml_diagram.py. The default is "mermaid".
 """
 
 import os
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from strictdoc.backend.sdoc.models.document import SDocDocument
-from strictdoc.backend.sysml import choices, version_tracking, versioning
+from strictdoc.backend.sysml import (
+    choices,
+    plantuml_diagram,
+    version_tracking,
+    versioning,
+)
 from strictdoc.backend.sysml.reader import SysMLReader
 from strictdoc.backend.sysml.version_tracking import TargetVersionLookup
 from strictdoc.backend.sysml.writer import SysMLWriter
@@ -32,8 +41,19 @@ if TYPE_CHECKING:
 
 
 class SysMLFormat(Format):
-    def __init__(self, item_versioning: bool = False) -> None:
+    def __init__(
+        self,
+        item_versioning: bool = False,
+        diagram_engine: str = plantuml_diagram.MERMAID_ENGINE,
+    ) -> None:
+        if diagram_engine not in plantuml_diagram.DIAGRAM_ENGINES:
+            raise ValueError(
+                "SysMLFormat: diagram_engine must be one of "
+                f"{', '.join(plantuml_diagram.DIAGRAM_ENGINES)}, "
+                f"not {diagram_engine!r}."
+            )
         self.item_versioning: bool = item_versioning
+        self.diagram_engine: str = diagram_engine
         # The latest traceability index, to look up the current version of
         # a trace target in another document.
         self._traceability_index: Optional[TraceabilityIndex] = None
@@ -158,3 +178,21 @@ def versioning_format_for_document(
     ):
         return document_format
     return None
+
+
+def uses_plantuml_diagrams(
+    project_config: ProjectConfig, document: SDocDocument
+) -> bool:
+    """
+    True when the document is a SysML document whose format draws its
+    diagrams with PlantUML.
+    """
+    if document.meta is None:
+        return False
+    document_format = project_config.get_editable_format_for_path(
+        document.meta.input_doc_full_path
+    )
+    return (
+        isinstance(document_format, SysMLFormat)
+        and document_format.diagram_engine == plantuml_diagram.PLANTUML_ENGINE
+    )

@@ -13,6 +13,15 @@
 (function () {
   "use strict";
 
+  // The engine loads the scripts it needs on demand (elk.bundled.js,
+  // standard library bundles) relative to this base.
+  if (document.currentScript && !window.PLANTUML_STDLIB_BASE) {
+    window.PLANTUML_STDLIB_BASE = document.currentScript.src.replace(
+      /[^/]*$/,
+      ""
+    );
+  }
+
   function renderBlock(block) {
     var diagramText = block.textContent;
     var lines = diagramText.split(/\r\n|\r|\n/);

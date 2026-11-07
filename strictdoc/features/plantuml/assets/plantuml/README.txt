@@ -10,7 +10,7 @@ requirements view uses it by default.
 
 Source:   https://github.com/davmf/plantuml
 Branch:   feature/sysml-views
-Commit:   197f3c39186db55f722d6817073968e101e060f5
+Commit:   e2f21ff30e89a9f87d98015e4dc818e903e8dff3
 Version:  1.2026.10beta1
 Exports:  render, renderToString, sysmlToPlantUml, sysmlDescribe
 

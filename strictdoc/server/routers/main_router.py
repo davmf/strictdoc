@@ -2647,20 +2647,30 @@ def create_main_router(
     # SysML design packages: element editor and source editor.
     #
 
-    def _sysml_read_file_text(document: SDocDocument) -> str:
+    def _sysml_source_path(
+        document: SDocDocument, node: Optional[SDocNode] = None
+    ) -> str:
+        """
+        The file that holds the SysML text of a node: its item file in the
+        tracker layout, else the file of the document.
+        """
         assert document.meta is not None
-        with file_open_read_utf8(document.meta.input_doc_full_path) as file_:
+        if node is not None:
+            item_file = node_data.get_item_file(node)
+            if item_file is not None:
+                return item_file.file_path
+        return document.meta.input_doc_full_path
+
+    def _sysml_read_file_text(file_path: str) -> str:
+        with file_open_read_utf8(file_path) as file_:
             return file_.read()
 
-    def _sysml_write_file_text(document: SDocDocument, text: str) -> None:
-        assert document.meta is not None
+    def _sysml_write_file_text(file_path: str, text: str) -> None:
         document_watcher = getattr(app.state, "document_watcher", None)
         if document_watcher is not None:
-            document_watcher.inhibit_next_change(
-                document.meta.input_doc_full_path
-            )
+            document_watcher.inhibit_next_change(file_path)
         with open(
-            document.meta.input_doc_full_path,
+            file_path,
             "w",
             encoding="utf8",
             newline="",
@@ -2668,17 +2678,19 @@ def create_main_router(
             file_.write(text)
 
     def _sysml_save_and_rebuild(
-        document: SDocDocument, new_text: str
+        document: SDocDocument, new_text: str, file_path: str
     ) -> Optional[str]:
         """
-        Validate the new text, write it and rebuild the traceability index.
+        Validate the new text, write it to file_path (the document file or,
+        in the tracker layout, an item file) and rebuild the traceability
+        index.
 
         Returns an error message, or None on success. If the rebuild fails,
         for example because a satisfy statement names an unknown requirement,
         the original text is written back and the current index is kept.
         """
         assert document.meta is not None
-        original_text = _sysml_read_file_text(document)
+        original_text = _sysml_read_file_text(file_path)
         sysml_format = versioning_format_for_document(project_config, document)
         try:
             if sysml_format is not None:
@@ -2689,25 +2701,25 @@ def create_main_router(
                 )
             sysml_editor.validate_text(
                 new_text,
-                file_path=document.meta.input_doc_full_path,
-                relative_path=document.meta.document_filename,
+                file_path=file_path,
+                relative_path=os.path.basename(file_path),
             )
         except SysMLEditError as exception_:
             return exception_.to_print_message()
 
         if sysml_format is not None:
             sysml_format.ensure_library(project_config)
-        _sysml_write_file_text(document, new_text)
+        _sysml_write_file_text(file_path, new_text)
         try:
             traceability_index = TraceabilityIndexBuilder.create(
                 project_config=project_config,
                 parallelizer=parallelizer,
             )
         except (DocumentTreeError, StrictDocException) as exception_:
-            _sysml_write_file_text(document, original_text)
+            _sysml_write_file_text(file_path, original_text)
             return exception_.to_print_message()
         except Exception:
-            _sysml_write_file_text(document, original_text)
+            _sysml_write_file_text(file_path, original_text)
             raise
         export_action.traceability_index = traceability_index
         return None
@@ -2750,11 +2762,15 @@ def create_main_router(
         assert document.meta is not None
         member_offset = node_data.get_member_offset(node)
         element: Optional[SysMLElement] = None
-        if node_data.source_hash(file_text) == node_data.get_source_hash(
-            document
-        ):
+        item_file = node_data.get_item_file(node)
+        read_hash = (
+            item_file.source_hash
+            if item_file is not None
+            else node_data.get_source_hash(document)
+        )
+        if node_data.source_hash(file_text) == read_hash:
             model = SysMLParser.parse_string(
-                file_text, file_path=document.meta.input_doc_full_path
+                file_text, file_path=_sysml_source_path(document, node)
             )
             element = sysml_editor.find_element(
                 model, assert_cast(member_offset, int)
@@ -2842,7 +2858,7 @@ def create_main_router(
     ) -> Response:
         node = _sysml_get_design_element_node(node_mid)
         document = assert_cast(node.get_document(), SDocDocument)
-        file_text = _sysml_read_file_text(document)
+        file_text = _sysml_read_file_text(_sysml_source_path(document, node))
         element = _sysml_find_element(document, node, file_text)
         form_object = SysMLElementFormObject.create_from_element(
             node_mid=node_mid,
@@ -2865,7 +2881,8 @@ def create_main_router(
         document = assert_cast(node.get_document(), SDocDocument)
         assert document.meta is not None
         document_full_path = document.meta.input_doc_full_path
-        file_text = _sysml_read_file_text(document)
+        source_path = _sysml_source_path(document, node)
+        file_text = _sysml_read_file_text(source_path)
 
         if node_data.source_hash(file_text) != form_object.source_hash:
             form_object.add_error(
@@ -2893,7 +2910,9 @@ def create_main_router(
             )
 
         if not form_object.any_errors() and new_text is not None:
-            save_error = _sysml_save_and_rebuild(document, new_text)
+            save_error = _sysml_save_and_rebuild(
+                document, new_text, source_path
+            )
             if save_error is not None:
                 form_object.add_error(SYSML_GENERAL_ERRORS_KEY, save_error)
 
@@ -2941,7 +2960,7 @@ def create_main_router(
         document = _sysml_get_design_document(document_mid)
         form_object = SysMLSourceFormObject.create_from_file_text(
             document_mid=document_mid,
-            file_text=_sysml_read_file_text(document),
+            file_text=_sysml_read_file_text(_sysml_source_path(document)),
         )
         return _sysml_render_form(
             "stream_edit_document_source.jinja.html",
@@ -2961,7 +2980,7 @@ def create_main_router(
         document = _sysml_get_design_document(form_object.document_mid)
         assert document.meta is not None
         document_full_path = document.meta.input_doc_full_path
-        file_text = _sysml_read_file_text(document)
+        file_text = _sysml_read_file_text(document_full_path)
 
         if node_data.source_hash(file_text) != form_object.source_hash:
             form_object.add_error(
@@ -2972,7 +2991,9 @@ def create_main_router(
         elif sysml_editor.normalize_source(
             form_object.source
         ) != sysml_editor.normalize_source(file_text):
-            save_error = _sysml_save_and_rebuild(document, form_object.source)
+            save_error = _sysml_save_and_rebuild(
+                document, form_object.source, document_full_path
+            )
             if save_error is not None:
                 form_object.add_error(SYSML_GENERAL_ERRORS_KEY, save_error)
 
@@ -3030,7 +3051,8 @@ def create_main_router(
                 offset = node_data.get_statement_offset(suspect_.reference)
                 if offset is not None and suspect_.current_version is not None:
                     versions_by_offset[offset] = suspect_.current_version
-            file_text = _sysml_read_file_text(document)
+            source_path = _sysml_source_path(document, node)
+            file_text = _sysml_read_file_text(source_path)
             try:
                 new_text = sysml_editor.review_traces(
                     file_text, versions_by_offset
@@ -3039,7 +3061,9 @@ def create_main_router(
                 raise HTTPException(
                     status_code=409, detail=exception_.to_print_message()
                 ) from exception_
-            save_error = _sysml_save_and_rebuild(document, new_text)
+            save_error = _sysml_save_and_rebuild(
+                document, new_text, source_path
+            )
             if save_error is not None:
                 raise HTTPException(status_code=422, detail=save_error)
         else:

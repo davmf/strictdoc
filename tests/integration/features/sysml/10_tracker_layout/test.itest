@@ -1,0 +1,34 @@
+#
+# Export a model in the tracker layout: one SysML file per item.
+#
+# Each tracker is one document. Its folders are sections and its items are
+# nodes, in the order of the includes. Folder files, item files and the model
+# root are not documents. A design item without a short name has its item ID
+# as UID. A file in a tracker directory that nothing includes gives a warning.
+#
+
+RUN: %strictdoc export %S --formats=html --output-dir %T --config %S/strictdoc_config.py | filecheck %s --dump-input=fail
+CHECK: warning: SysML file SYS-ORPHAN.sysml is in the tracker directory, but no tracker or folder includes it.
+CHECK: Export completed.
+
+RUN: ls %T/html/%THIS_TEST_FOLDER/TRK-SYS/ | filecheck %s --dump-input=fail --check-prefix CHECK-FILES
+CHECK-FILES: TRK-SYS.html
+CHECK-FILES-NOT: SYS-001.html
+CHECK-FILES-NOT: SYS-F-HEATING.html
+
+RUN: %cat %T/html/%THIS_TEST_FOLDER/TRK-SYS/TRK-SYS.html | filecheck %s --dump-input=fail --check-prefix CHECK-SYS
+CHECK-SYS: System requirements
+CHECK-SYS: Requirements of the kettle.
+CHECK-SYS: Heating
+CHECK-SYS: SYS-001
+CHECK-SYS: Boil time
+CHECK-SYS: STK-001
+CHECK-SYS: SYS-002
+CHECK-SYS: Safety
+CHECK-SYS: SYS-010
+CHECK-SYS-NOT: SYS-ORPHAN
+
+RUN: %cat %T/html/%THIS_TEST_FOLDER/TRK-SC/TRK-SC.html | filecheck %s --dump-input=fail --check-prefix CHECK-SC
+CHECK-SC: Scenarios
+CHECK-SC: SC-001
+CHECK-SC: kettle

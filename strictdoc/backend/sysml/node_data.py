@@ -33,10 +33,15 @@ and the shared model classes stay unchanged.
   the file, by qualified name. See choices.py.
 - Choice types: per requirements document, the type text of each field
   whose attributes hold enumeration literals, by field title.
+- Tracker layout (see tracker.py): per document, the tracker it was read
+  from; per section, the folder file; per node, the item file, the hash of
+  its text and the item ID. The writer and the editor use them to write
+  each item to its own file.
 """
 
 import hashlib
 import re
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from strictdoc.backend.sdoc.models.document import SDocDocument
@@ -60,6 +65,32 @@ _STATEMENT_OFFSET_KEY = "ng_sysml_statement_offset"
 _CANDIDATE_UIDS_KEY = "ng_sysml_candidate_uids"
 _ENUM_DEFINITIONS_KEY = "ng_sysml_enum_definitions"
 _CHOICE_TYPES_KEY = "ng_sysml_choice_types"
+_TRACKER_KEY = "ng_sysml_tracker"
+_FOLDER_KEY = "ng_sysml_folder"
+_ITEM_FILE_KEY = "ng_sysml_item_file"
+
+
+@dataclass
+class TrackerFile:
+    """A tracker, folder or item file of the tracker layout."""
+
+    file_id: str
+    file_path: str
+    source_hash: str
+
+
+@dataclass
+class TrackerData:
+    """The tracker a document was read from."""
+
+    tracker: TrackerFile
+    title: str
+    kind: Optional[str]
+    prefix: Optional[str]
+    # The metadata usage of the tracker file, as written.
+    metadata_text: str
+    # Every file of the tracker (tracker, folders, items) when it was read.
+    file_paths: List[str] = field(default_factory=list)
 
 
 def set_attribute_types(
@@ -240,3 +271,30 @@ def attribute_name_from_field_title(field_title: str) -> str:
     if len(parts) == 0:
         return field_title
     return parts[0] + "".join(part_.capitalize() for part_ in parts[1:])
+
+
+def set_tracker(document: SDocDocument, tracker_data: TrackerData) -> None:
+    setattr(document, _TRACKER_KEY, tracker_data)
+
+
+def get_tracker(document: SDocDocument) -> Optional[TrackerData]:
+    value: Any = getattr(document, _TRACKER_KEY, None)
+    return value if isinstance(value, TrackerData) else None
+
+
+def set_folder(section: SDocNode, folder_file: TrackerFile) -> None:
+    setattr(section, _FOLDER_KEY, folder_file)
+
+
+def get_folder(section: SDocNode) -> Optional[TrackerFile]:
+    value: Any = getattr(section, _FOLDER_KEY, None)
+    return value if isinstance(value, TrackerFile) else None
+
+
+def set_item_file(node: SDocNode, item_file: TrackerFile) -> None:
+    setattr(node, _ITEM_FILE_KEY, item_file)
+
+
+def get_item_file(node: SDocNode) -> Optional[TrackerFile]:
+    value: Any = getattr(node, _ITEM_FILE_KEY, None)
+    return value if isinstance(value, TrackerFile) else None

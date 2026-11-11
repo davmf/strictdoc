@@ -66,7 +66,7 @@ from strictdoc.backend.sdoc.models.node import (
 )
 from strictdoc.backend.sdoc.models.reference import ParentReqReference
 from strictdoc.backend.sdoc.pickle_cache import PickleCache
-from strictdoc.backend.sysml import choices, node_data, versioning
+from strictdoc.backend.sysml import choices, node_data, tracker, versioning
 from strictdoc.backend.sysml.diagram import (
     as_rst_raw_html,
     create_mermaid_diagram,
@@ -242,6 +242,43 @@ class SysMLReader:
         return document
 
     @staticmethod
+    def read_from_tracker_file(
+        file_path: str,
+        relative_path: str,
+        item_versioning: bool = False,
+    ) -> SDocDocument:
+        """
+        Read a tracker of the tracker layout (see tracker.py) and the files
+        it includes as one document. Not cached: the document depends on
+        every file of the tracker.
+        """
+        tracker_ = tracker.read_tracker(file_path)
+        model = tracker.as_model(tracker_)
+        trackers_ = _TrackerMaps.create(tracker_)
+        if is_requirements_model(model):
+            document = _build_requirements_document(
+                model,
+                file_path=file_path,
+                relative_path=relative_path,
+                item_versioning=item_versioning,
+                tracker_maps=trackers_,
+            )
+        else:
+            document = _build_design_document(
+                model,
+                file_path=file_path,
+                relative_path=relative_path,
+                tracker_maps=trackers_,
+            )
+        node_data.set_tracker(document, _tracker_data(tracker_))
+        _update_diagram_node(document, model)
+        node_data.set_enum_definitions(
+            document, choices.collect_enum_definitions(model)
+        )
+        document.build_search_index()
+        return document
+
+    @staticmethod
     def refresh_diagram(document: SDocDocument) -> None:
         """
         Rebuild the diagram node from the file of the document.
@@ -250,7 +287,12 @@ class SysMLReader:
         diagram is rebuilt from the text that was written.
         """
         document_meta = assert_cast(document.meta, DocumentMeta)
-        model = SysMLParser.parse_file(document_meta.input_doc_full_path)
+        if node_data.get_tracker(document) is not None:
+            model = tracker.as_model(
+                tracker.read_tracker(document_meta.input_doc_full_path)
+            )
+        else:
+            model = SysMLParser.parse_file(document_meta.input_doc_full_path)
         _update_diagram_node(document, model)
 
 
@@ -332,6 +374,86 @@ def _fallback_title(file_path: Optional[str]) -> str:
 def _location_message(file_path: Optional[str], span: SysMLSpan) -> str:
     location = file_path if file_path is not None else "<string>"
     return f"{location}, line {span.line_start}"
+
+
+@dataclass
+class _TrackerMaps:
+    """
+    Where the members of a tracker model come from: the item of each
+    member and the folder of each package, by id() of the member.
+    """
+
+    item_by_member: Dict[int, tracker.TrackerItem] = field(default_factory=dict)
+    folders: List[tracker.TrackerFolder] = field(default_factory=list)
+
+    @staticmethod
+    def create(tracker_: tracker.Tracker) -> "_TrackerMaps":
+        return _TrackerMaps(
+            item_by_member=tracker.items_by_member(tracker_),
+            folders=tracker_.folders(),
+        )
+
+    def file_path_of(
+        self, member: object, default: Optional[str]
+    ) -> Optional[str]:
+        item = self.item_by_member.get(id(member))
+        return item.file_path if item is not None else default
+
+    def item_file(self, member: object) -> Optional[node_data.TrackerFile]:
+        item = self.item_by_member.get(id(member))
+        if item is None:
+            return None
+        return node_data.TrackerFile(
+            file_id=item.item_id,
+            file_path=item.file_path,
+            source_hash=item.source_hash(),
+        )
+
+    def folder_file(
+        self, package: SysMLPackage
+    ) -> Optional[node_data.TrackerFile]:
+        """
+        The folder of a package of the tracker model. as_model() gives the
+        package the span and the title of its folder.
+        """
+        for folder_ in self.folders:
+            if folder_.package.span == package.span and (
+                folder_.title == package.name
+            ):
+                return node_data.TrackerFile(
+                    file_id=folder_.folder_id,
+                    file_path=folder_.file_path,
+                    source_hash=tracker.text_hash(folder_.source_text),
+                )
+        return None
+
+    def is_item_element(self, element: SysMLElement) -> bool:
+        """Whether the element is the element of its item package."""
+        item = self.item_by_member.get(id(element))
+        return item is not None and any(
+            member_ is element for member_ in item.content_members()
+        )
+
+
+def _tracker_data(tracker_: tracker.Tracker) -> node_data.TrackerData:
+    metadata_text = ""
+    usage = tracker.find_metadata(tracker_.package, tracker.TRACKER_METADATA)
+    if usage is not None:
+        metadata_text = tracker_.source_text.encode("utf-8")[
+            usage.span.byte_start : usage.span.byte_end
+        ].decode("utf-8")
+    return node_data.TrackerData(
+        tracker=node_data.TrackerFile(
+            file_id=tracker_.tracker_id,
+            file_path=tracker_.file_path,
+            source_hash=tracker.text_hash(tracker_.source_text),
+        ),
+        title=tracker_.title,
+        kind=tracker_.kind,
+        prefix=tracker_.prefix,
+        metadata_text=metadata_text,
+        file_paths=tracker_.files(),
+    )
 
 
 def _single_line_field(field_name: str, value: str) -> SDocNodeField:
@@ -500,6 +622,7 @@ class _RequirementsBuildState:
     nodes_by_uid: Dict[str, SDocNode] = field(default_factory=dict)
     pending_dependencies: List[SysMLDependency] = field(default_factory=list)
     has_derivation_prefix: bool = False
+    tracker_maps: _TrackerMaps = field(default_factory=_TrackerMaps)
 
 
 def _build_requirements_document(
@@ -507,6 +630,7 @@ def _build_requirements_document(
     file_path: Optional[str],
     relative_path: str,
     item_versioning: bool,
+    tracker_maps: Optional[_TrackerMaps] = None,
 ) -> SDocDocument:
     top_package = [m_ for m_ in model.members if isinstance(m_, SysMLPackage)][
         0
@@ -561,6 +685,9 @@ def _build_requirements_document(
         relative_path=relative_path,
         file_path=file_path,
         attribute_field_titles=attribute_field_titles,
+        tracker_maps=(
+            tracker_maps if tracker_maps is not None else _TrackerMaps()
+        ),
     )
     _add_requirements_members(
         document, top_package.members, state, path_prefix=""
@@ -709,6 +836,9 @@ def _add_requirements_members(
             section.reserved_mid = _stable_mid(
                 state.relative_path, "section", path_prefix, str(section_index)
             )
+            folder_file = state.tracker_maps.folder_file(member_)
+            if folder_file is not None:
+                node_data.set_folder(section, folder_file)
             container.section_contents.append(section)
             _add_requirements_members(
                 section,
@@ -771,7 +901,10 @@ def _create_requirement_node(
                 else _collapse_value(attribute_.value_text)
             )
 
-    item_version = _read_item_version(element, state.file_path)
+    element_file_path = state.tracker_maps.file_path_of(
+        element, state.file_path
+    )
+    item_version = _read_item_version(element, element_file_path)
 
     fields: List[SDocNodeField] = []
     if element.short_name is not None:
@@ -822,12 +955,19 @@ def _create_requirement_node(
     )
     node_data.set_item_version(node, item_version)
     node_data.set_computed_hash(node, SysMLWriter.requirement_hash(node))
+    item_file = state.tracker_maps.item_file(element)
+    if item_file is not None:
+        node_data.set_item_file(node, item_file)
+        node_data.set_imports(
+            node,
+            state.tracker_maps.item_by_member[id(element)].imports,
+        )
 
     if element.short_name is not None:
         if element.short_name in state.nodes_by_uid:
             raise StrictDocException(
                 "Could not read SysML file: "
-                f"{_location_message(state.file_path, element.span)}: "
+                f"{_location_message(element_file_path, element.span)}: "
                 f"duplicate requirement UID '{element.short_name}'."
             )
         state.nodes_by_uid[element.short_name] = node
@@ -840,15 +980,19 @@ def _resolve_dependencies(state: _RequirementsBuildState) -> None:
     for dependency_ in state.pending_dependencies:
         if "derivation" in dependency_.annotations:
             state.has_derivation_prefix = True
+        dependency_file_path = state.tracker_maps.file_path_of(
+            dependency_, state.file_path
+        )
         traced_version = _read_traced_version(
-            dependency_.members, dependency_.span, state.file_path
+            dependency_.members, dependency_.span, dependency_file_path
         )
         for source_ in dependency_.sources:
             child_node = state.nodes_by_uid.get(source_)
             if child_node is None:
                 raise StrictDocException(
                     "Could not read SysML file: "
-                    f"{_location_message(state.file_path, dependency_.span)}: "
+                    + _location_message(dependency_file_path, dependency_.span)
+                    + ": "
                     f"dependency source '{source_}' is not a requirement "
                     "in this file."
                 )
@@ -916,6 +1060,8 @@ class _PendingRelation:
     span: SysMLSpan
     source_text: str
     traced_version: Optional[int]
+    # The file of the statement, for messages.
+    file_path: Optional[str] = None
 
 
 @dataclass
@@ -936,12 +1082,14 @@ class _DesignBuildState:
     elements_by_node: List[Tuple[SDocNode, SysMLElement]] = field(
         default_factory=list
     )
+    tracker_maps: _TrackerMaps = field(default_factory=_TrackerMaps)
 
 
 def _build_design_document(
     model: SysMLModel,
     file_path: Optional[str],
     relative_path: str,
+    tracker_maps: Optional[_TrackerMaps] = None,
 ) -> SDocDocument:
     packages = [m_ for m_ in model.members if isinstance(m_, SysMLPackage)]
     root_name: Optional[str] = None
@@ -978,6 +1126,9 @@ def _build_design_document(
         relative_path=relative_path,
         file_path=file_path,
         source_data=model.source_text.encode("utf-8"),
+        tracker_maps=(
+            tracker_maps if tracker_maps is not None else _TrackerMaps()
+        ),
     )
     prefix: List[str] = [root_name] if root_name is not None else []
     _add_design_members(
@@ -1288,6 +1439,9 @@ def _add_design_members(
                 container, state.document, section_name
             )
             section.autogen = True
+            folder_file = state.tracker_maps.folder_file(member_)
+            if folder_file is not None:
+                node_data.set_folder(section, folder_file)
             section.ng_line_start = member_.span.line_start
             section.ng_col_start = member_.span.col_start
             section.ng_including_document_reference = DocumentReference()
@@ -1347,7 +1501,14 @@ def _add_design_members(
                     span=member_.span,
                     source_text=member_.source_text,
                     traced_version=_read_traced_version(
-                        member_.members, member_.span, state.file_path
+                        member_.members,
+                        member_.span,
+                        state.tracker_maps.file_path_of(
+                            member_, state.file_path
+                        ),
+                    ),
+                    file_path=state.tracker_maps.file_path_of(
+                        member_, state.file_path
                     ),
                 )
             )
@@ -1363,7 +1524,14 @@ def _add_design_members(
                     span=member_.span,
                     source_text=member_.source_text,
                     traced_version=_read_traced_version(
-                        member_.members, member_.span, state.file_path
+                        member_.members,
+                        member_.span,
+                        state.tracker_maps.file_path_of(
+                            member_, state.file_path
+                        ),
+                    ),
+                    file_path=state.tracker_maps.file_path_of(
+                        member_, state.file_path
                     ),
                 )
             )
@@ -1398,11 +1566,21 @@ def _create_design_node(
     state: _DesignBuildState,
 ) -> SDocCompositeNode:
     qualified_name = "::".join(element_segments)
+    item_file = state.tracker_maps.item_file(element)
     base_uid = (
         element.short_name if element.short_name is not None else qualified_name
     )
+    if (
+        element.short_name is None
+        and item_file is not None
+        and state.tracker_maps.is_item_element(element)
+    ):
+        # The element of an item package: the item ID is its UID.
+        base_uid = item_file.file_id
     uid = _unique_uid(_sanitize_uid(base_uid), state)
-    item_version = _read_item_version(element, state.file_path)
+    item_version = _read_item_version(
+        element, state.tracker_maps.file_path_of(element, state.file_path)
+    )
 
     fields: List[SDocNodeField] = [_single_line_field(UID_FIELD, uid)]
     if element.name is not None:
@@ -1445,8 +1623,14 @@ def _create_design_node(
     )
     node_data.set_member_offset(node, member_span.byte_start)
     node_data.set_item_version(node, item_version)
+    source_data = state.source_data
+    if item_file is not None:
+        node_data.set_item_file(node, item_file)
+        source_data = state.tracker_maps.item_by_member[
+            id(element)
+        ].source_text.encode("utf-8")
     node_data.set_computed_hash(
-        node, versioning.element_hash(state.source_data, element, member_span)
+        node, versioning.element_hash(source_data, element, member_span)
     )
     _add_type_references(node, element)
     state.nodes_by_path.append((element_segments, node))
@@ -1615,10 +1799,20 @@ def _resolve_design_relations(state: _DesignBuildState) -> None:
         if target_node is None:
             raise StrictDocException(
                 "Could not read SysML file: "
-                f"{_location_message(state.file_path, relation_.span)}: "
+                f"{_location_message(relation_.file_path, relation_.span)}: "
                 f"'{relation_.role.lower()}' statement must be inside an "
                 "element or name the element with 'by'."
             )
+        if any(
+            isinstance(existing_, ParentReqReference)
+            and existing_.ref_uid == relation_.requirement_uid
+            and existing_.role == relation_.role
+            for existing_ in target_node.relations
+        ):
+            # Two statements, such as `satisfy R by a.b` and `satisfy R by
+            # a.b.c`, can resolve to the same node. The node gets one
+            # relation, and SATISFIED_BY_PATH lists both paths.
+            continue
         reference = ParentReqReference(
             parent=target_node,
             ref_uid=relation_.requirement_uid,

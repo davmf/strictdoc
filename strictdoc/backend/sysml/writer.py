@@ -24,6 +24,8 @@ The writer refuses to write autogen documents, i.e. design packages. It
 skips the generated diagram node.
 """
 
+import hashlib
+import os
 import re
 from typing import Dict, List, Optional, Sequence, Set, Union
 
@@ -40,6 +42,7 @@ from strictdoc.backend.sysml.versioning import (
 from strictdoc.core.document_meta import DocumentMeta
 from strictdoc.helpers.cast import assert_cast
 from strictdoc.helpers.exception import StrictDocException
+from strictdoc.helpers.file_system import file_open_read_utf8
 
 _INDENT = "    "
 _IDENTIFIER_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
@@ -284,6 +287,325 @@ class SysMLWriter:
             lines.append(pad + _INDENT + traced_version_text(traced_version))
             lines.append(pad + "}")
         return lines
+
+
+class SysMLTrackerWriter:
+    """
+    Writes a requirements document of the tracker layout (see tracker.py)
+    back to its files: the tracker file, one file per section (folder) and
+    one file per requirement (item).
+
+    - A tracker or folder file has its metadata, its doc comments and one
+      `public import '<ID>'::*;` per child, in document order.
+    - An item file has the imports of the item, the requirement and the
+      dependencies of the requirement.
+    - A requirement without a UID gets the tracker prefix and the next free
+      number. A new section gets the ID `<prefix>-F-<TITLE>`.
+    - A new item file gets the imports of the first item of the tracker, or
+      an import of the tracker. `#derivation` adds an import of
+      RequirementDerivation.
+    - Files whose text does not change are not written. Files of the tracker
+      that are no longer part of it are deleted.
+    """
+
+    @staticmethod
+    def write_to_files(document: SDocDocument) -> List[str]:
+        """
+        Write the files of the document. Returns the paths that were
+        written or deleted.
+        """
+        files_by_path = SysMLTrackerWriter.render(document)
+        tracker_data = assert_cast(
+            node_data.get_tracker(document), node_data.TrackerData
+        )
+        tracker_directory = os.path.dirname(tracker_data.tracker.file_path)
+        changed_paths: List[str] = []
+        for path_, text_ in files_by_path.items():
+            if _read_text(path_) == text_:
+                continue
+            with open(path_, "w", encoding="utf8", newline="") as file_:
+                file_.write(text_)
+            changed_paths.append(path_)
+        for path_ in tracker_data.file_paths:
+            if path_ in files_by_path or not os.path.isfile(path_):
+                continue
+            if not os.path.abspath(path_).startswith(
+                os.path.abspath(tracker_directory) + os.sep
+            ):
+                continue
+            os.remove(path_)
+            changed_paths.append(path_)
+        tracker_data.file_paths = list(files_by_path)
+        return changed_paths
+
+    @staticmethod
+    def render(document: SDocDocument) -> Dict[str, str]:
+        """
+        The text of every file of the document, by path. Gives missing IDs
+        to requirements and sections, and records the file of each node.
+        """
+        if document.autogen:
+            raise StrictDocException(
+                "SysML design packages are read only and cannot be written: "
+                f"{document.title}."
+            )
+        tracker_data = assert_cast(
+            node_data.get_tracker(document), node_data.TrackerData
+        )
+        state = _TrackerWriteState(document, tracker_data)
+        files_by_path: Dict[str, str] = {}
+        child_ids = SysMLTrackerWriter._write_children(
+            document.section_contents, state, files_by_path
+        )
+        head_lines = [_INDENT + tracker_data.metadata_text]
+        head_lines.extend(_text_lines(document.section_contents, _INDENT))
+        tracker_path = tracker_data.tracker.file_path
+        files_by_path[tracker_path] = _package_text(
+            tracker_data.tracker.file_id, head_lines, child_ids
+        )
+        # The tracker file is first, then folders and items in document
+        # order.
+        return {
+            tracker_path: files_by_path[tracker_path],
+            **{
+                path_: text_
+                for path_, text_ in files_by_path.items()
+                if path_ != tracker_path
+            },
+        }
+
+    @staticmethod
+    def _write_children(
+        children: Sequence[object],
+        state: "_TrackerWriteState",
+        files_by_path: Dict[str, str],
+    ) -> List[str]:
+        child_ids: List[str] = []
+        for child_ in children:
+            if not isinstance(child_, SDocNode):
+                continue
+            if node_data.is_diagram(child_) or child_.node_type == "TEXT":
+                continue
+            if child_.node_type == "SECTION":
+                child_ids.append(
+                    SysMLTrackerWriter._write_folder(
+                        child_, state, files_by_path
+                    )
+                )
+            elif child_.node_type == "REQUIREMENT":
+                child_ids.append(
+                    SysMLTrackerWriter._write_item(child_, state, files_by_path)
+                )
+            else:
+                raise StrictDocException(
+                    "The node type cannot be written to a SysML file: "
+                    f"{child_.node_type}."
+                )
+        return child_ids
+
+    @staticmethod
+    def _write_folder(
+        section: SDocNode,
+        state: "_TrackerWriteState",
+        files_by_path: Dict[str, str],
+    ) -> str:
+        title = _field_text(section, "TITLE") or ""
+        folder_file = node_data.get_folder(section)
+        if folder_file is not None:
+            folder_id = folder_file.file_id
+            folder_path = folder_file.file_path
+        else:
+            folder_id = state.new_folder_id(title)
+            folder_path = state.new_file_path(folder_id)
+        child_ids = SysMLTrackerWriter._write_children(
+            section.section_contents, state, files_by_path
+        )
+        escaped_title = title.replace("\\", "\\\\").replace('"', '\\"')
+        head_lines = [
+            (
+                f"{_INDENT}@StrictDocWorkspace::Folder "
+                f'{{ title = "{escaped_title}"; }}'
+            )
+        ]
+        head_lines.extend(_text_lines(section.section_contents, _INDENT))
+        text = _package_text(folder_id, head_lines, child_ids)
+        files_by_path[folder_path] = text
+        node_data.set_folder(
+            section,
+            node_data.TrackerFile(
+                file_id=folder_id,
+                file_path=folder_path,
+                source_hash=_text_hash(text),
+            ),
+        )
+        return folder_id
+
+    @staticmethod
+    def _write_item(
+        requirement: SDocNode,
+        state: "_TrackerWriteState",
+        files_by_path: Dict[str, str],
+    ) -> str:
+        uid = _field_text(requirement, "UID")
+        item_file = node_data.get_item_file(requirement)
+        if uid is None:
+            uid = (
+                item_file.file_id
+                if item_file is not None
+                else state.new_item_id()
+            )
+            requirement.set_field_value(
+                field_name="UID", form_field_index=0, value=uid
+            )
+        if item_file is not None and item_file.file_id == uid:
+            item_path = item_file.file_path
+            imports = node_data.get_imports(requirement)
+        else:
+            item_path = state.new_file_path(uid)
+            imports = (
+                node_data.get_imports(requirement)
+                if item_file is not None
+                else state.default_imports
+            )
+        dependency_lines = SysMLWriter._dependency_lines(
+            requirement, _INDENT, state.document
+        )
+        if node_data.get_derivation_prefix(state.document) and not any(
+            "RequirementDerivation" in import_ for import_ in imports
+        ):
+            imports = imports + ["private import RequirementDerivation::*;"]
+        blocks: List[str] = []
+        if len(imports) > 0:
+            blocks.append("\n".join(_INDENT + import_ for import_ in imports))
+        blocks.append(
+            "\n".join(SysMLWriter._requirement_lines(requirement, _INDENT))
+        )
+        if len(dependency_lines) > 0:
+            blocks.append("\n".join(dependency_lines))
+        text = _package_lines_text(uid, blocks)
+        files_by_path[item_path] = text
+        node_data.set_imports(requirement, imports)
+        node_data.set_item_file(
+            requirement,
+            node_data.TrackerFile(
+                file_id=uid, file_path=item_path, source_hash=_text_hash(text)
+            ),
+        )
+        return uid
+
+
+class _TrackerWriteState:
+    def __init__(
+        self, document: SDocDocument, tracker_data: node_data.TrackerData
+    ) -> None:
+        self.document: SDocDocument = document
+        self.tracker_data: node_data.TrackerData = tracker_data
+        self.directory: str = os.path.dirname(tracker_data.tracker.file_path)
+        tracker_id = tracker_data.tracker.file_id
+        self.prefix: str = (
+            tracker_data.prefix
+            if tracker_data.prefix is not None and len(tracker_data.prefix) > 0
+            else re.sub(r"^TRK-", "", tracker_id)
+        )
+        self.used_ids: Set[str] = {tracker_id}
+        self.default_imports: List[str] = [
+            f"private import {_quote_name(tracker_id)}::*;"
+        ]
+        found_item_imports = False
+        for node_ in document.iterate_nodes():
+            if not isinstance(node_, SDocNode):
+                continue
+            uid_ = _field_text(node_, "UID")
+            if uid_ is not None:
+                self.used_ids.add(uid_)
+            item_file_ = node_data.get_item_file(node_)
+            if item_file_ is not None:
+                self.used_ids.add(item_file_.file_id)
+                if not found_item_imports:
+                    self.default_imports = node_data.get_imports(node_)
+                    found_item_imports = True
+            folder_file_ = node_data.get_folder(node_)
+            if folder_file_ is not None:
+                self.used_ids.add(folder_file_.file_id)
+        self.known_paths: Set[str] = set(tracker_data.file_paths)
+
+    def new_item_id(self) -> str:
+        pattern = re.compile(re.escape(self.prefix) + r"-(\d+)$")
+        highest = 0
+        for id_ in self.used_ids:
+            match_ = pattern.match(id_)
+            if match_ is not None:
+                highest = max(highest, int(match_.group(1)))
+        new_id = f"{self.prefix}-{highest + 1:03d}"
+        self.used_ids.add(new_id)
+        return new_id
+
+    def new_folder_id(self, title: str) -> str:
+        slug = re.sub(r"[^A-Za-z0-9]+", "-", title).strip("-").upper()
+        base_id = f"{self.prefix}-F-{slug if len(slug) > 0 else 'FOLDER'}"
+        new_id = base_id
+        counter = 2
+        while new_id in self.used_ids:
+            new_id = f"{base_id}-{counter}"
+            counter += 1
+        self.used_ids.add(new_id)
+        return new_id
+
+    def new_file_path(self, file_id: str) -> str:
+        path = os.path.join(self.directory, f"{file_id}.sysml")
+        if path not in self.known_paths and os.path.exists(path):
+            raise StrictDocException(
+                f"Cannot write the SysML item '{file_id}': {path} exists "
+                "and is not part of this tracker."
+            )
+        return path
+
+
+def _package_text(
+    package_id: str, head_lines: List[str], child_ids: List[str]
+) -> str:
+    blocks = ["\n".join(head_lines)]
+    if len(child_ids) > 0:
+        blocks.append(
+            "\n".join(
+                f"{_INDENT}public import {_quote_name(id_)}::*;"
+                for id_ in child_ids
+            )
+        )
+    return _package_lines_text(package_id, blocks)
+
+
+def _package_lines_text(package_id: str, blocks: List[str]) -> str:
+    """`package '<ID>' { ... }` with blank lines between the blocks."""
+    return (
+        f"package {_quote_name(package_id)} {{\n"
+        + "\n\n".join(blocks)
+        + "\n}\n"
+    )
+
+
+def _text_lines(children: Sequence[object], pad: str) -> List[str]:
+    lines: List[str] = []
+    for child_ in children:
+        if (
+            isinstance(child_, SDocNode)
+            and child_.node_type == "TEXT"
+            and not node_data.is_diagram(child_)
+        ):
+            lines.extend(_doc_block(_field_text(child_, "STATEMENT"), pad))
+    return lines
+
+
+def _read_text(path: str) -> Optional[str]:
+    if not os.path.isfile(path):
+        return None
+    with file_open_read_utf8(path) as file_:
+        return file_.read()
+
+
+def _text_hash(text: str) -> str:
+    """The same hash as tracker.text_hash() and node_data.source_hash()."""
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def _quote_name(raw_name: str) -> str:

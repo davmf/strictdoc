@@ -84,6 +84,16 @@ class Format(ABC):
         """
         return []
 
+    def is_document_file(self, path: str) -> bool:  # noqa: ARG002
+        """
+        Whether a file with one of read_extensions() is a document.
+
+        DocumentFinder skips the files for which this returns False. A
+        format whose documents are made of several files uses it to read
+        only the file that represents the document. Default: True.
+        """
+        return True
+
     def read_from_file(
         self, doc_file: "File", project_config: "ProjectConfig"
     ) -> "SDocDocument":

@@ -5907,6 +5907,120 @@ file.
 [[/SECTION]]
 
 [[SECTION]]
+MID: 5042a2ece3934b67b0913405b1d462f8
+UID: SECTION-UG-SysML-tracker-layout
+TITLE: Tracker layout: one file per item
+
+[TEXT]
+MID: 5240ac6271b04cf7b6de94702f4301b6
+STATEMENT: >>>
+In the tracker layout, each item of a SysML model is a separate file. A
+tracker includes its folders and items, and a folder includes its own
+children. Git history is then item history.
+
+Turn the layout on in ``strictdoc_config.py``:
+
+.. code-block:: python
+
+    SysMLFormat(tracker_layout=True)
+
+The layout follows these rules:
+
+- Each file holds one top-level package. The package name is the ID of what
+  the file holds, and the file name is the ID: ``SYS-001.sysml`` holds
+  ``package 'SYS-001'``.
+- A tracker is a package with ``@StrictDocWorkspace::Tracker`` metadata. Its
+  attributes are ``title``, ``kind`` and ``prefix``.
+- A folder is a package with ``@StrictDocWorkspace::Folder`` metadata. Its
+  attribute is ``title``.
+- An item package holds one element and the traces it is the client of,
+  for example ``dependency from 'SYS-001' to 'STK-001';``.
+- A tracker or a folder includes a child with
+  ``public import '<ID>'::*;``. The order of the imports is the order of the
+  children. A ``private import`` is not an include.
+- StrictDoc looks for the file of an ID next to the including file, then in
+  the directory of the tracker.
+
+.. code-block:: text
+
+    TRK-SYS/TRK-SYS.sysml
+        package 'TRK-SYS' {
+            @StrictDocWorkspace::Tracker {
+                title = "System requirements"; prefix = "SYS";
+            }
+            public import 'SYS-F-HEATING'::*;
+        }
+
+    TRK-SYS/SYS-F-HEATING.sysml
+        package 'SYS-F-HEATING' {
+            @StrictDocWorkspace::Folder { title = "Heating"; }
+            public import 'SYS-001'::*;
+        }
+
+    TRK-SYS/SYS-001.sysml
+        package 'SYS-001' {
+            private import 'TRK-STK'::*;
+            requirement <'SYS-001'> 'Boil time' { ... }
+            dependency from 'SYS-001' to 'STK-001';
+        }
+
+StrictDoc reads the layout as follows:
+
+- Each tracker file is a document. The title of the document is the title
+  of the tracker.
+- Folders are sections and items are nodes, in the order of the includes.
+- Folder files, item files, the model root and libraries are not documents.
+- A tracker of requirements is an editable requirements document. Any other
+  tracker is a design document.
+- A design element without a short name has its item ID as its ``UID``.
+
+StrictDoc stops the export with an error that names the file in these
+cases:
+
+- an include names no file;
+- a file includes itself, directly or through other files;
+- a file is included twice;
+- the top-level package of a file is not named as the file.
+
+StrictDoc warns about a file in a tracker directory that nothing includes,
+and about an ID that two files of the trackers share. The SysML v2 Pilot
+Implementation reports neither of them.
+<<<
+
+[[SECTION]]
+MID: a852cba2ceff4b2daf92252c900e5108
+TITLE: Saving in the tracker layout
+
+[TEXT]
+MID: 8454c555460c4e0c9d213e8873b6d104
+STATEMENT: >>>
+StrictDoc writes a requirements tracker file by file:
+
+- A change to a requirement rewrites its item file only.
+- A tracker or folder file changes only when its children, its title or its
+  doc comments change.
+- A file whose text does not change is not written.
+- A new requirement without a ``UID`` gets the tracker prefix and the next
+  free number, for example ``SYS-011``. StrictDoc writes its item file and
+  adds the import to its parent.
+- A new section gets a folder file with the ID ``<prefix>-F-<TITLE>``.
+- A deleted requirement loses its import, and StrictDoc deletes its file.
+- A moved requirement changes the imports of the old and the new parent.
+- A new item file gets the imports of the first item of the tracker.
+
+The editor of a design element and ``Mark traces reviewed`` change the item
+file of the element. The ``Edit SysML source`` action of a design tracker
+edits the tracker file.
+
+When the Web UI watches the files, a save in the tracker layout also
+triggers a rebuild for the item and folder files that change.
+<<<
+
+[[/SECTION]]
+
+[[/SECTION]]
+
+[[SECTION]]
 MID: 65fdbcc5ea6445e4ba0b7037fa2b8b6b
 TITLE: Syntax errors
 

@@ -95,6 +95,12 @@ each trace can record the version of its target. With
 changed item when it saves a file. StrictDoc warns about traces whose target
 has a different version. The ``Mark traces reviewed`` action of the Web UI
 updates them.
+
+8\) SysML models can use the tracker layout, with one file per item. With
+``SysMLFormat(tracker_layout=True)``, each tracker file is a document. Its
+folders are sections and its items are nodes. A save writes only the files
+that change. A new requirement gets an ID and a file, and a deleted
+requirement loses its file.
 <<<
 
 [[/SECTION]]

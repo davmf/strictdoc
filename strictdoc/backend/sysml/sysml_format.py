@@ -13,16 +13,26 @@ versioning.py and version_tracking.py.
 
 Requirement attributes typed by an `enum def` are SingleChoice fields, which
 the edit form shows as drop-down lists. See choices.py.
+
+SysMLFormat(tracker_layout=True) reads the tracker layout, one file per
+item: each tracker file is a document made of the files it includes, and
+the other files are not documents. See tracker.py.
 """
 
 import os
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
 
 from strictdoc.backend.sdoc.models.document import SDocDocument
-from strictdoc.backend.sysml import choices, version_tracking, versioning
+from strictdoc.backend.sysml import (
+    choices,
+    node_data,
+    tracker,
+    version_tracking,
+    versioning,
+)
 from strictdoc.backend.sysml.reader import SysMLReader
 from strictdoc.backend.sysml.version_tracking import TargetVersionLookup
-from strictdoc.backend.sysml.writer import SysMLWriter
+from strictdoc.backend.sysml.writer import SysMLTrackerWriter, SysMLWriter
 from strictdoc.core.file_system.file_tree import File
 from strictdoc.core.format import ExportContext, Format
 from strictdoc.core.project_config import ProjectConfig
@@ -32,8 +42,11 @@ if TYPE_CHECKING:
 
 
 class SysMLFormat(Format):
-    def __init__(self, item_versioning: bool = False) -> None:
+    def __init__(
+        self, item_versioning: bool = False, tracker_layout: bool = False
+    ) -> None:
         self.item_versioning: bool = item_versioning
+        self.tracker_layout: bool = tracker_layout
         # The latest traceability index, to look up the current version of
         # a trace target in another document.
         self._traceability_index: Optional[TraceabilityIndex] = None
@@ -73,9 +86,20 @@ class SysMLFormat(Format):
     def read_extensions() -> List[str]:
         return [".sysml"]
 
+    def is_document_file(self, path: str) -> bool:
+        if self.tracker_layout:
+            return tracker.is_tracker_file(path)
+        return True
+
     def read_from_file(
         self, doc_file: File, project_config: ProjectConfig
     ) -> SDocDocument:
+        if self.tracker_layout:
+            return SysMLReader.read_from_tracker_file(
+                doc_file.full_path,
+                relative_path=doc_file.rel_path.relative_path_posix,
+                item_versioning=self.item_versioning,
+            )
         return SysMLReader.read_from_file(
             doc_file.full_path,
             project_config,
@@ -93,7 +117,10 @@ class SysMLFormat(Format):
                 document, self.target_version_lookup(document)
             )
             self.ensure_library(project_config)
-        SysMLWriter.write_to_file(document)
+        if node_data.get_tracker(document) is not None:
+            SysMLTrackerWriter.write_to_files(document)
+        else:
+            SysMLWriter.write_to_file(document)
         SysMLReader.refresh_diagram(document)
 
     def traceability_index_build_finished(
@@ -103,6 +130,8 @@ class SysMLFormat(Format):
         choices.apply_choice_fields(traceability_index)
         if self.item_versioning:
             version_tracking.report_issues(traceability_index)
+        if self.tracker_layout:
+            _report_layout_issues(traceability_index)
 
     def target_version_lookup(
         self, document: Optional[SDocDocument] = None
@@ -140,6 +169,50 @@ class SysMLFormat(Format):
         raise NotImplementedError(
             f"{self.__class__.__name__} does not support export."
         )
+
+
+def _report_layout_issues(traceability_index: "TraceabilityIndex") -> None:
+    """
+    Report, on the tracker documents, the files of their directories that
+    no tracker includes and the IDs that two files of the trackers share.
+    The Pilot reports neither: a file nothing imports is never checked, and
+    two top-level packages with one name resolve to either of them.
+    """
+    trackers: Dict[str, SDocDocument] = {}
+    files_by_id: Dict[str, List[str]] = {}
+    included_files: Set[str] = set()
+    for document_ in traceability_index.document_tree.document_list:
+        tracker_data = node_data.get_tracker(document_)
+        if tracker_data is None:
+            continue
+        trackers[os.path.dirname(tracker_data.tracker.file_path)] = document_
+        for path_ in tracker_data.file_paths:
+            included_files.add(path_)
+            file_id = os.path.splitext(os.path.basename(path_))[0]
+            files_by_id.setdefault(file_id, []).append(path_)
+    for directory_, document_ in trackers.items():
+        for file_ in sorted(os.listdir(directory_)):
+            path_ = os.path.join(directory_, file_)
+            if not file_.endswith(".sysml") or path_ in included_files:
+                continue
+            if tracker.is_tracker_file(path_):
+                continue
+            traceability_index.validation_index.add_issue(
+                document_,
+                f"SysML file {file_} is in the tracker directory, but no "
+                "tracker or folder includes it.",
+            )
+    for file_id_, paths_ in files_by_id.items():
+        if len(paths_) < 2:
+            continue
+        for directory_, document_ in trackers.items():
+            if any(os.path.dirname(path_) == directory_ for path_ in paths_):
+                traceability_index.validation_index.add_issue(
+                    document_,
+                    f"SysML ID '{file_id_}' is used by more than one file: "
+                    + ", ".join(sorted(paths_))
+                    + ".",
+                )
 
 
 def versioning_format_for_document(

@@ -53,6 +53,19 @@ def _build_extension_dispatch_table(
     return entries
 
 
+def is_document_file(project_config: ProjectConfig, path: str) -> bool:
+    """
+    Whether the format that reads a file takes it as a document. See
+    Format.is_document_file().
+    """
+    for extension_, format_, is_grammar_ in _build_extension_dispatch_table(
+        project_config
+    ):
+        if path.endswith(extension_):
+            return is_grammar_ or format_.is_document_file(path)
+    return True
+
+
 def get_document_extensions(project_config: ProjectConfig) -> List[str]:
     """
     All extensions natively read (as documents or grammars) by the
@@ -342,6 +355,7 @@ class DocumentFinder:
                     extensions=get_document_extensions(project_config),
                     include_paths=project_config.include_doc_paths,
                     exclude_paths=project_config.exclude_doc_paths,
+                    is_document_file=partial(is_document_file, project_config),
                 )
             root_trees.append(file_tree_structure)
 

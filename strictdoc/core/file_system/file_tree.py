@@ -1,6 +1,6 @@
 import functools
 import os
-from typing import Dict, Iterator, List, Optional, Tuple, Union
+from typing import Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 from typing_extensions import TypeAlias
 
@@ -104,7 +104,12 @@ class FileFinder:
         extensions: Optional[List[str]],
         include_paths: List[str],
         exclude_paths: List[str],
+        is_document_file: Optional[Callable[[str], bool]] = None,
     ) -> FileTree:
+        """
+        is_document_file, when given, decides for each file with a matching
+        extension whether it is part of the tree.
+        """
         assert os.path.isdir(root_path)
         assert os.path.isabs(root_path), root_path
         assert not root_path.endswith("/"), root_path
@@ -178,6 +183,11 @@ class FileFinder:
                 # It seems to be safe to ignore this and possibly other cases
                 # here without writing any test for this case.
                 if not os.path.isfile(full_file_path):  # pragma: no cover
+                    continue
+
+                if is_document_file is not None and not is_document_file(
+                    full_file_path
+                ):
                     continue
 
                 rel_file_path = SDocRelativePath(

@@ -99,6 +99,7 @@ class SysMLFormat(Format):
                 doc_file.full_path,
                 relative_path=doc_file.rel_path.relative_path_posix,
                 item_versioning=self.item_versioning,
+                static_directory=project_config.dir_for_sdoc_assets,
             )
         return SysMLReader.read_from_file(
             doc_file.full_path,
@@ -121,7 +122,12 @@ class SysMLFormat(Format):
             SysMLTrackerWriter.write_to_files(document)
         else:
             SysMLWriter.write_to_file(document)
-        SysMLReader.refresh_diagram(document)
+        SysMLReader.refresh_diagram(
+            document,
+            project_config.dir_for_sdoc_assets
+            if project_config is not None
+            else "_static",
+        )
 
     def traceability_index_build_finished(
         self, traceability_index: "TraceabilityIndex"

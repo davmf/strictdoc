@@ -19,6 +19,9 @@ from strictdoc.core.project_config import ProjectConfig
 from strictdoc.features.project_actions.router import (
     create_project_actions_router,
 )
+from strictdoc.features.sysml_diagrams.router import (
+    create_sysml_diagrams_router,
+)
 from strictdoc.helpers.coverage import register_code_coverage_hook
 from strictdoc.helpers.deprecation_engine import DEPRECATION_ENGINE
 from strictdoc.helpers.pickle import pickle_load
@@ -164,6 +167,11 @@ def create_app(*, project_config: ProjectConfig) -> FastAPI:
     # Included first, because the main router ends with a catch-all route.
     app.include_router(
         create_project_actions_router(project_config=project_config, app=app)
+    )
+    app.include_router(
+        create_sysml_diagrams_router(
+            project_config=project_config, lock_manager=lock_manager
+        )
     )
     app.include_router(
         create_other_router(

@@ -91,6 +91,7 @@ RawText:
 ;
 
 Package:
+    (is_standard?='standard')? (is_library?='library')?
     'package' short_name=ShortName? name=Name? body=Body
 ;
 
@@ -139,7 +140,7 @@ Modifier:
 DeclKind:
     'part' | 'item' | 'attribute' | 'action' | 'calc' | 'analysis'
     | 'verification' | 'requirement' | 'constraint' | 'metadata' | 'enum'
-    | 'objective'
+    | 'objective' | 'view'
 ;
 
 ShortName:

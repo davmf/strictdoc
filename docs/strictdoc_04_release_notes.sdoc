@@ -70,10 +70,10 @@ formats ``.markdown`` documents.
 3\) SysML doc comments can contain images. Use the RST ``image`` directive,
 or drop or paste an image into a requirement in the Web UI.
 
-4\) Each SysML document starts with a Mermaid diagram of its file. The diagram
-shows packages, elements, successions, and the ``satisfy``, ``verify`` and
-``allocate`` links. StrictDoc rebuilds it when it reads the file and after
-every save.
+4\) Each SysML document starts with a PlantUML diagram: the requirements of a
+requirements document and their traces, or the definitions of a design
+document. The browser draws it with the PlantUML engine from the SysML files
+of the project, so it matches the files after every save.
 
 5\) SysML design packages are editable in the Web UI. The editor of a design
 element has a ``Tables`` tab for its ``DETAILS`` and ``MEMBERS`` rows and a
@@ -101,6 +101,12 @@ updates them.
 folders are sections and its items are nodes. A save writes only the files
 that change. A new requirement gets an ID and a file, and a deleted
 requirement loses its file.
+
+9\) In the tracker layout, SysML items have diagrams. A state machine, a
+sequence or another item of a SysML profile shows its diagram, a ``view``
+item shows a saved diagram, and the other items have a ``Traces`` button for
+their trace diagram. A click on a box opens its node. StrictDoc reads
+``library package`` files, such as the SysML profiles.
 <<<
 
 [[/SECTION]]

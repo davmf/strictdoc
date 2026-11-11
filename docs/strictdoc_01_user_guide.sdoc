@@ -5860,45 +5860,36 @@ TITLE: Diagrams
 [TEXT]
 MID: 359517cf56174d279d7900b718ffa41c
 STATEMENT: >>>
-Each SysML document starts with a diagram of its file. StrictDoc builds the
-diagram from the file when it reads the file and again after every save in the
-Web UI, so the diagram always matches the file. The diagram is a Mermaid
-flowchart that follows the SysML v2 graphical notation where Mermaid allows it.
+The Web UI draws the diagrams of SysML documents with PlantUML. The browser
+runs the PlantUML engine (TeaVM build, MIT license) with its
+``!include_sysml`` directive, on the text of every ``.sysml`` file of the
+project. The server gives the files at ``/actions/sysml/model_files``, so the
+diagrams always match the files, also after a save.
 
-.. list-table:: Diagram notation
-    :header-rows: 1
-    :widths: 40 60
+Each SysML document starts with a diagram:
 
-    * - SysML v2
-      - Diagram
-    * - Package, or element with members
-      - Box that contains the members. The title is the keyword and the name,
-        for example ``«part def» Station``. The top-level package is the
-        document and has no box.
-    * - Definition, for example ``part def``
-      - Box with square corners.
-    * - Usage, for example ``part`` or ``requirement``
-      - Box with rounded corners.
-    * - ``attribute``
-      - Line in the box of its owner. Requirements do not list their
-        attributes.
-    * - ``decide`` and ``merge``
-      - Diamond.
-    * - ``fork`` and ``join``
-      - Bar.
-    * - ``start`` and ``done``
-      - Filled circle and framed circle.
-    * - Succession, ``then``, ``if ... then`` and ``else``
-      - Solid arrow. A guard is the label, for example
-        ``[not sample.invalid]``.
-    * - ``satisfy``, ``verify``, ``allocate``, ``perform`` and ``dependency``
-      - Dashed arrow labelled with the keyword, for example ``«satisfy»``. A
-        ``#derivation`` dependency is labelled ``«derive»``.
-    * - Typing or specialisation by a definition in the same file
-      - Dashed arrow labelled ``«defined by»`` or ``«specializes»``.
+- A requirements document shows its requirements and what lies one relation
+  away from them: parents, children, satisfying elements and verifications.
+  The boxes show no doc text, because the nodes below show it.
+- A design document shows its definitions.
 
-A reference to an element outside the file, such as a requirement in another
-package, is a box with a dashed border.
+In the tracker layout, the items of a document also get diagrams:
+
+- An item that a SysML profile draws, such as a state machine, a sequence or
+  a timing diagram, shows its diagram below its fields. The profile library
+  must be a file of the project, for example in a ``_library`` folder.
+- A ``view`` item is a saved diagram. It shows the diagram that its
+  ``expose`` statements and its ``@StrictDocWorkspace::DiagramView``
+  metadata describe. One state machine can have several views.
+- Any other item has a ``Traces`` button. The button shows the trace diagram
+  of the item: the item and what lies one relation away from it.
+
+A click on a box of a diagram opens the node of the box. A click elsewhere
+on a diagram switches between the width of the page and the full size of the
+diagram.
+
+The diagrams need the server. The PlantUML documentation of
+``!include_sysml`` describes the options of the diagrams.
 
 The diagram is a read-only node. StrictDoc does not write it to the ``.sysml``
 file.

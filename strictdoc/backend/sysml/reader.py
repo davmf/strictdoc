@@ -67,10 +67,7 @@ from strictdoc.backend.sdoc.models.node import (
 from strictdoc.backend.sdoc.models.reference import ParentReqReference
 from strictdoc.backend.sdoc.pickle_cache import PickleCache
 from strictdoc.backend.sysml import choices, node_data, tracker, versioning
-from strictdoc.backend.sysml.diagram import (
-    as_rst_raw_html,
-    create_mermaid_diagram,
-)
+from strictdoc.backend.sysml.diagram import as_rst_raw_html, diagram_options
 from strictdoc.backend.sysml.model import (
     SysMLAttribute,
     SysMLBlockComment,
@@ -94,7 +91,6 @@ from strictdoc.backend.sysml.versioning import (
     SysMLVersioningError,
 )
 from strictdoc.backend.sysml.writer import SysMLWriter
-from strictdoc.core.document_meta import DocumentMeta
 from strictdoc.core.project_config import ProjectConfig
 from strictdoc.helpers.cast import assert_cast
 from strictdoc.helpers.exception import StrictDocException
@@ -160,12 +156,14 @@ DESIGN_TAGS: Dict[Tuple[str, bool], str] = {
     ("verification", True): "VERIFICATION_DEF",
     ("analysis", False): "ANALYSIS",
     ("analysis", True): "ANALYSIS_DEF",
+    # A saved diagram of the tracker layout (see diagram.py).
+    ("view", False): "VIEW",
 }
 
 
 # Part of the pickle cache key. Bump it when the reader output changes, so
 # that cached documents built by an older reader are not reused.
-SYSML_CACHE_KIND = "sysml-reader-13"
+SYSML_CACHE_KIND = "sysml-reader-14"
 
 # Specialisation operators that name a type of the element. Redefinition
 # (`:>>`) and subsetting name features, not types.
@@ -204,6 +202,7 @@ class SysMLReader:
                 else os.path.basename(file_path)
             ),
             item_versioning=item_versioning,
+            static_directory=project_config.dir_for_sdoc_assets,
         )
         document.build_search_index()
         PickleCache.save_to_cache(
@@ -217,11 +216,15 @@ class SysMLReader:
         file_path: Optional[str],
         relative_path: str,
         item_versioning: bool = False,
+        static_directory: str = "_static",
     ) -> SDocDocument:
         """
         With item_versioning, the requirements grammar always has the
         ITEM_VERSION field. Without it, the field is there only when a
         requirement of the file has a version.
+
+        static_directory is where the server serves the static files: the
+        diagram placeholder loads its script from there.
         """
         model = SysMLParser.parse_string(content, file_path=file_path)
         if is_requirements_model(model):
@@ -235,7 +238,16 @@ class SysMLReader:
             document = _build_design_document(
                 model, file_path=file_path, relative_path=relative_path
             )
-        _update_diagram_node(document, model)
+        packages = [
+            member_
+            for member_ in model.members
+            if isinstance(member_, SysMLPackage)
+        ]
+        _update_diagram_node(
+            document,
+            packages[0].name if len(packages) == 1 else None,
+            static_directory,
+        )
         node_data.set_enum_definitions(
             document, choices.collect_enum_definitions(model)
         )
@@ -246,6 +258,7 @@ class SysMLReader:
         file_path: str,
         relative_path: str,
         item_versioning: bool = False,
+        static_directory: str = "_static",
     ) -> SDocDocument:
         """
         Read a tracker of the tracker layout (see tracker.py) and the files
@@ -271,7 +284,7 @@ class SysMLReader:
                 tracker_maps=trackers_,
             )
         node_data.set_tracker(document, _tracker_data(tracker_))
-        _update_diagram_node(document, model)
+        _update_diagram_node(document, tracker_.tracker_id, static_directory)
         node_data.set_enum_definitions(
             document, choices.collect_enum_definitions(model)
         )
@@ -279,21 +292,22 @@ class SysMLReader:
         return document
 
     @staticmethod
-    def refresh_diagram(document: SDocDocument) -> None:
+    def refresh_diagram(
+        document: SDocDocument, static_directory: str = "_static"
+    ) -> None:
         """
-        Rebuild the diagram node from the file of the document.
-
-        The server keeps a document in memory after it saves it, so the
-        diagram is rebuilt from the text that was written.
+        Rebuild the diagram node after a save. The server keeps a document in
+        memory after it saves it, and the title of a requirements document,
+        which is the name of its package, can change.
         """
-        document_meta = assert_cast(document.meta, DocumentMeta)
-        if node_data.get_tracker(document) is not None:
-            model = tracker.as_model(
-                tracker.read_tracker(document_meta.input_doc_full_path)
-            )
-        else:
-            model = SysMLParser.parse_file(document_meta.input_doc_full_path)
-        _update_diagram_node(document, model)
+        tracker_data = node_data.get_tracker(document)
+        _update_diagram_node(
+            document,
+            tracker_data.tracker.file_id
+            if tracker_data is not None
+            else document.title,
+            static_directory,
+        )
 
 
 def is_requirements_model(model: SysMLModel) -> bool:
@@ -320,26 +334,33 @@ def is_requirements_model(model: SysMLModel) -> bool:
     return True
 
 
-def _update_diagram_node(document: SDocDocument, model: SysMLModel) -> None:
+def _update_diagram_node(
+    document: SDocDocument, root_name: Optional[str], static_directory: str
+) -> None:
     """
-    Show the diagram of the model in the first node of the document.
+    Show the diagram of the document in its first node: a placeholder that
+    the browser draws with PlantUML (see diagram.py). root_name is the
+    package or the tracker the diagram draws.
 
     An existing diagram node gets a new STATEMENT field, so that HTML
     rendered for the old diagram is not reused. The node is removed when
-    the model has nothing to draw.
+    there is no package to draw.
     """
     diagram_node: Optional[SDocNode] = None
     for node_ in document.section_contents:
         if isinstance(node_, SDocNode) and node_data.is_diagram(node_):
             diagram_node = node_
             break
-    diagram_source = create_mermaid_diagram(model)
-    if diagram_source is None:
+    if root_name is None:
         if diagram_node is not None:
             document.section_contents.remove(diagram_node)
         return
     statement_field = _content_field(
-        STATEMENT_FIELD, as_rst_raw_html(diagram_source)
+        STATEMENT_FIELD,
+        as_rst_raw_html(
+            diagram_options(root_name, is_design=document.autogen),
+            static_directory,
+        ),
     )
     if diagram_node is not None:
         statement_field.parent = diagram_node

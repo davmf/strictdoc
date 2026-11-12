@@ -13,6 +13,9 @@ SysML files of the project:
 - a design document: the definitions of its package or tracker
   (`view=definitions root=<package>`).
 
+In the tracker layout, the block also links to the tracker on the workspace
+screen.
+
 The script that draws the placeholders is
 `strictdoc/features/plantuml/assets/plantuml/sysml/sysml-diagrams.js`. It
 also adds the diagrams of the items of the page: the diagram of a state
@@ -21,11 +24,15 @@ diagram on demand for the other items.
 """
 
 import html
+from typing import List, Optional
+from urllib.parse import quote
 
 # The URL of the nodes, for `links=`: StrictDoc resolves `/?a=<UID>` to
 # the node with this UID.
 NODE_LINK_PATTERN = "/?a={id}"
 SCRIPT_PATH = "plantuml/sysml/sysml-diagrams.js"
+# The workspace screen (strictdoc/features/sysml_workspace), with an entry.
+WORKSPACE_URL = "/workspace?item="
 
 
 def diagram_options(root_name: str, is_design: bool) -> str:
@@ -42,17 +49,33 @@ def diagram_options(root_name: str, is_design: bool) -> str:
     )
 
 
-def as_rst_raw_html(options: str, static_directory: str) -> str:
+def as_rst_raw_html(
+    options: str,
+    static_directory: str,
+    workspace_item: Optional[str] = None,
+) -> str:
     """
     The placeholder of a diagram and the script that draws it, as an RST raw
     HTML block. The browser runs the script once, however many placeholders
-    a page has.
+    a page has. With workspace_item (a tracker of the tracker layout), the
+    block starts with a link to the tracker on the workspace screen.
     """
     script_url = f"/{static_directory.strip('/')}/{SCRIPT_PATH}"
+    workspace_link: List[str] = []
+    if workspace_item is not None:
+        workspace_url = WORKSPACE_URL + quote(workspace_item, safe="")
+        workspace_link = [
+            (
+                '    <p class="sysml-diagram-workspace">'
+                f'<a href="{html.escape(workspace_url)}">'
+                "Open in workspace</a></p>"
+            )
+        ]
     return "\n".join(
         [
             ".. raw:: html",
             "",
+            *workspace_link,
             (
                 '    <div class="sysml-diagram" data-sysml-document="true"'
                 f' data-sysml-options="{html.escape(options)}"></div>'

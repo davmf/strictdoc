@@ -1,0 +1,378 @@
+/* The SysML workspace screen (strictdoc/features/sysml_workspace). */
+
+body[data-viewtype="sysml-workspace"] .layout {
+  grid-template-columns:
+    fit-content(var(--base-gap))
+    minmax(16rem, 22rem)
+    0
+    minmax(0, 1fr)
+    minmax(14rem, 20rem)
+    fit-content(var(--base-gap));
+}
+
+body[data-viewtype="sysml-workspace"] .layout_tree,
+body[data-viewtype="sysml-workspace"] .layout_toc {
+  overflow: auto;
+  background: var(--color-bg-contrast, #fff);
+}
+
+body[data-viewtype="sysml-workspace"] .layout_tree {
+  border-right: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+body[data-viewtype="sysml-workspace"] .layout_toc {
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+body[data-viewtype="sysml-workspace"] .layout_main {
+  overflow: auto;
+}
+
+/* Tree */
+
+.sysml-ws-tree {
+  padding: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.sysml-ws-filter {
+  box-sizing: border-box;
+  width: 100%;
+  margin-bottom: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+.sysml-ws-tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sysml-ws-tree ul ul {
+  padding-left: 1rem;
+}
+
+.sysml-ws-tree-entry[aria-expanded="false"]:not(.sysml-ws-filtered) > ul {
+  display: none;
+}
+
+.sysml-ws-row {
+  display: flex;
+  align-items: center;
+}
+
+.sysml-ws-toggle,
+.sysml-ws-toggle-space {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.sysml-ws-toggle {
+  cursor: pointer;
+}
+
+.sysml-ws-toggle::before {
+  content: "\25B8";
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.sysml-ws-tree-entry[aria-expanded="true"] > .sysml-ws-row > .sysml-ws-toggle::before,
+.sysml-ws-filtered > .sysml-ws-row > .sysml-ws-toggle::before {
+  content: "\25BE";
+}
+
+.sysml-ws-link {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.15rem 0.3rem;
+  border-radius: 3px;
+  color: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.sysml-ws-link:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.sysml-ws-link.sysml-ws-selected {
+  background: rgba(30, 110, 220, 0.15);
+  font-weight: 600;
+}
+
+.sysml-ws-link-id {
+  color: rgba(0, 0, 0, 0.55);
+  font-family: monospace;
+}
+
+.sysml-ws-link-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Icons: a letter on the colour of the kind. */
+
+.sysml-ws-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 3px;
+  background: #8a8f98;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-family: sans-serif;
+  line-height: 1;
+}
+
+.sysml-ws-icon[data-icon="model"] { background: #3b3f46; }
+.sysml-ws-icon[data-icon="tracker"] { background: #5b4fc4; }
+.sysml-ws-icon[data-icon="folder"] { background: #c99a2e; }
+.sysml-ws-icon[data-icon="requirement"] { background: #1f6fd1; }
+.sysml-ws-icon[data-icon="testcase"] { background: #2e9b57; }
+.sysml-ws-icon[data-icon="part"],
+.sysml-ws-icon[data-icon="partdef"] { background: #8a5a2b; }
+.sysml-ws-icon[data-icon="partdef"] { border-radius: 50%; }
+.sysml-ws-icon[data-icon="action"],
+.sysml-ws-icon[data-icon="activity"] { background: #c4532e; }
+.sysml-ws-icon[data-icon="statemachine"] { background: #b0368e; }
+.sysml-ws-icon[data-icon="sequence"] { background: #17899a; }
+.sysml-ws-icon[data-icon="timing"] { background: #6b8e23; }
+.sysml-ws-icon[data-icon="view"] { background: #444c9a; }
+.sysml-ws-icon[data-icon="calc"],
+.sysml-ws-icon[data-icon="analysis"] { background: #6d6d6d; }
+
+/* Middle pane */
+
+.sysml-ws-main {
+  max-width: 70rem;
+  padding: 1rem 1.5rem 3rem;
+}
+
+.sysml-ws-main[aria-busy="true"] {
+  opacity: 0.6;
+}
+
+.sysml-ws-breadcrumbs {
+  font-size: 0.8rem;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.sysml-ws-breadcrumbs a {
+  color: inherit;
+}
+
+.sysml-ws-breadcrumbs-separator {
+  margin: 0 0.3rem;
+}
+
+.sysml-ws-entry-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.sysml-ws-entry-header > .sysml-ws-icon {
+  width: 2rem;
+  height: 2rem;
+  font-size: 1.1rem;
+}
+
+.sysml-ws-entry-header > div {
+  flex: 1;
+}
+
+.sysml-ws-entry-kind,
+.sysml-ws-entry-file {
+  font-size: 0.8rem;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.sysml-ws-entry-file {
+  font-family: monospace;
+}
+
+.sysml-ws-entry-title {
+  margin: 0.1rem 0;
+  font-size: 1.4rem;
+}
+
+.sysml-ws-button {
+  display: inline-block;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 3px;
+  background: #fff;
+  color: inherit;
+  font-size: 0.85rem;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sysml-ws-button:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.sysml-ws-error {
+  margin: 0.5rem 0 1rem;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid #b00020;
+  background: #fdecee;
+  color: #6b0013;
+  white-space: pre-wrap;
+}
+
+.sysml-ws-fields {
+  margin: 0 0 1rem;
+}
+
+.sysml-ws-field {
+  display: grid;
+  grid-template-columns: minmax(8rem, 14rem) 1fr;
+  gap: 0.75rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.sysml-ws-field-block {
+  grid-template-columns: 1fr;
+  gap: 0.2rem;
+}
+
+.sysml-ws-field dt {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.sysml-ws-field dd {
+  margin: 0;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.sysml-ws-section {
+  margin: 1.25rem 0;
+}
+
+.sysml-ws-section > h2,
+.sysml-ws-side-section > h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.sysml-ws-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.sysml-ws-table th,
+.sysml-ws-table td {
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.sysml-ws-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.sysml-ws-form input[type="text"] {
+  flex: 1;
+  min-width: 12rem;
+  padding: 0.3rem 0.5rem;
+}
+
+.sysml-ws-source pre {
+  overflow-x: auto;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.04);
+  font-size: 0.8rem;
+}
+
+.sysml-ws-members summary,
+.sysml-ws-source summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* Right pane */
+
+.sysml-ws-side {
+  padding: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.sysml-ws-side-section {
+  margin-bottom: 1.5rem;
+}
+
+.sysml-ws-side-section h3 {
+  margin: 0.5rem 0 0.25rem;
+  font-size: 0.8rem;
+  color: rgba(0, 0, 0, 0.6);
+  text-transform: uppercase;
+}
+
+.sysml-ws-relations,
+.sysml-ws-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sysml-ws-relations li,
+.sysml-ws-history li {
+  padding: 0.25rem 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.sysml-ws-relations a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: monospace;
+}
+
+.sysml-ws-role {
+  display: inline-block;
+  padding: 0 0.3rem;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.06);
+  font-size: 0.75rem;
+}
+
+.sysml-ws-muted {
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.sysml-ws-change {
+  padding: 0.3rem 0.5rem;
+  border-left: 3px solid #c99a2e;
+  background: #fbf4e2;
+}
+
+/* With proxy auth, a user without the editor role sees no create forms. */
+body[data-user-role]:not([data-user-role="editor"]):not([data-user-role="admin"])
+  .sysml-ws-edit {
+  display: none;
+}

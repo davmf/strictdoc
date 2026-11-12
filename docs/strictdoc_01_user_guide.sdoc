@@ -5863,7 +5863,7 @@ STATEMENT: >>>
 The Web UI draws the diagrams of SysML documents with PlantUML. The browser
 runs the PlantUML engine (TeaVM build, MIT license) with its
 ``!include_sysml`` directive, on the text of every ``.sysml`` file of the
-project. The server gives the files at ``/actions/sysml/model_files``, so the
+project. The server gives the files at ``/sysml/model_files``, so the
 diagrams always match the files, also after a save.
 
 Each SysML document starts with a diagram:
@@ -5876,8 +5876,9 @@ Each SysML document starts with a diagram:
 In the tracker layout, the items of a document also get diagrams:
 
 - An item that a SysML profile draws, such as a state machine, a sequence or
-  a timing diagram, shows its diagram below its fields. The profile library
-  must be a file of the project, for example in a ``_library`` folder.
+  a timing diagram, shows its diagram below its fields. The PlantUML engine
+  knows the profile types, so the profile library does not have to be a file
+  of the project.
 - A ``view`` item is a saved diagram. It shows the diagram that its
   ``expose`` statements and its ``@StrictDocWorkspace::DiagramView``
   metadata describe. One state machine can have several views.
@@ -6005,6 +6006,80 @@ edits the tracker file.
 
 When the Web UI watches the files, a save in the tracker layout also
 triggers a rebuild for the item and folder files that change.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
+MID: 95a3dacaaa314b27ba3a80425252ad98
+UID: SECTION-UG-SysML-workspace
+TITLE: Workspace screen
+
+[TEXT]
+MID: 1cec87544d5e4e37b8ed5f804c7208f6
+STATEMENT: >>>
+In the tracker layout, the Web UI has a workspace screen at ``/workspace``.
+It shows the whole model at once, in three panes:
+
+- The left pane is the tree of the model: the model root, its trackers,
+  their folders and their items. The icon of an item shows its kind:
+  requirement, test case, part, state machine, sequence, timing diagram,
+  view... The filter box keeps the entries whose ID or title contains the
+  text, with their parents.
+- The middle pane shows the selected entry:
+
+  - an item: its ID, title, file and fields, then its diagram, its members
+    and its source. A state machine or another profile item shows its
+    profile diagram, a ``view`` item its saved diagram, and any other item
+    its trace diagram;
+  - a tracker or a folder: its diagram and a table of its children;
+  - the model root: a table of its trackers.
+
+- The right pane shows the relations of the entry to and from other items,
+  and the Git history of its file: its commits and whether it has changes
+  that are not committed.
+
+A click on an entry, a relation or a box of a diagram selects the entry
+without loading the page again. The address of the page names the selected
+entry (``/workspace?item=SYS-001``), so it can be shared. ``Open in
+document`` opens the node of the entry on the document screen, where its
+fields are edited.
+
+The model root is the file with ``@StrictDocWorkspace::Model`` metadata. It
+includes the trackers in the order of the tree:
+
+.. code-block:: text
+
+    package 'MODEL' {
+        @StrictDocWorkspace::Model { title = "Kettle"; }
+        public import 'TRK-STK';
+        public import 'TRK-SYS';
+    }
+
+A tracker that the model root does not include comes after the others. A
+tracker that cannot be read is left out of the tree, and the model root
+shows the error.
+
+The middle pane creates entries. The forms need the editor role when proxy
+authentication is on.
+
+- The model root creates a tracker from a title, a kind
+  (``requirements``, ``design``, ``behaviour`` or ``test cases``) and a
+  prefix. The tracker gets a folder of its own, ``TRK-<PREFIX>``, next to
+  the model root, which includes it.
+- A tracker or a folder creates a folder, with the ID
+  ``<prefix>-F-<TITLE>``.
+- A tracker or a folder creates an item from the template of its kind. A
+  requirements tracker creates requirements. The other trackers create test
+  cases, parts, part definitions, actions, state machines, sequences and
+  timing diagrams. The item gets the next free ID of the tracker, for
+  example ``BEH-002``, and its file gets the imports of the first item of
+  the tracker and the import of its profile. The state machine, sequence
+  and timing templates hold a small diagram to start from.
+
+The parent of a new entry includes it. StrictDoc then reads the model again
+and shows the new entry. Nothing is committed: the new files wait for the
+next commit, like the edits of the document screen.
 <<<
 
 [[/SECTION]]

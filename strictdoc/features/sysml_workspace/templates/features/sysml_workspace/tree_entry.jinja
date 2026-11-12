@@ -1,0 +1,37 @@
+<li
+  class="sysml-ws-tree-entry"
+  role="treeitem"
+  data-entry-id="{{ entry.entry_id }}"
+  data-entry-type="{{ entry.entry_type }}"
+  data-search="{{ (entry.entry_id ~ ' ' ~ entry.title) | lower }}"
+  {%- if entry.children %} aria-expanded="{{ 'true' if view_object.is_expanded(entry) else 'false' }}"{% endif %}
+>
+  <div class="sysml-ws-row">
+    {%- if entry.children -%}
+    <button type="button" class="sysml-ws-toggle" tabindex="-1" aria-label="Expand or collapse"></button>
+    {%- else -%}
+    <span class="sysml-ws-toggle-space"></span>
+    {%- endif -%}
+    <a
+      class="sysml-ws-link{% if view_object.is_selected(entry) %} sysml-ws-selected{% endif %}"
+      href="{{ view_object.entry_url(entry) }}"
+      data-entry-id="{{ entry.entry_id }}"
+      title="{{ entry.kind_label }}: {{ entry.entry_id }}"
+    >
+      {%- include "features/sysml_workspace/icon.jinja" -%}
+      {%- if entry.entry_type == "item" -%}
+      <span class="sysml-ws-link-id">{{ entry.entry_id }}</span>
+      {%- endif -%}
+      <span class="sysml-ws-link-title">{{ entry.title }}</span>
+    </a>
+  </div>
+  {%- if entry.children %}
+  <ul role="group">
+    {%- for child in entry.children -%}
+      {%- with entry = child -%}
+        {% include "features/sysml_workspace/tree_entry.jinja" %}
+      {%- endwith -%}
+    {%- endfor -%}
+  </ul>
+  {%- endif %}
+</li>

@@ -3,7 +3,7 @@
 The browser draws the diagrams of SysML documents with these files:
 
 - `sysml-diagrams.js`: finds the diagram placeholders of a page, gets the
-  SysML files of the project from `/actions/sysml/model_files` and draws
+  SysML files of the project from `/sysml/model_files` and draws
   each placeholder. It also adds the diagrams of the items of the page.
   See `strictdoc/backend/sysml/diagram.py`.
 - `plantuml-mit.js`: the PlantUML engine compiled to JavaScript by TeaVM,

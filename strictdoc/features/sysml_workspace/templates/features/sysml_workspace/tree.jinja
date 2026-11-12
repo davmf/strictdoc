@@ -1,0 +1,14 @@
+<div class="sysml-ws-tree" data-testid="sysml-workspace-tree">
+  <input
+    class="sysml-ws-filter"
+    id="sysml-ws-filter"
+    type="search"
+    placeholder="Filter by ID or title"
+    aria-label="Filter the tree"
+    data-testid="sysml-workspace-filter"
+  />
+  <ul class="sysml-ws-tree-list" role="tree">
+    {%- set entry = view_object.workspace.root -%}
+    {% include "features/sysml_workspace/tree_entry.jinja" %}
+  </ul>
+</div>

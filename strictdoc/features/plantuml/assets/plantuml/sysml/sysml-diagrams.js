@@ -15,14 +15,14 @@
  * A diagram fits the width of the page. A click on it, outside its links,
  * shows it at its full size, with a scroll bar.
  *
- * The SysML files come from /actions/sysml/model_files, once per page and
+ * The SysML files come from /sysml/model_files, once per page and
  * again after a save. Placeholders are drawn when they scroll into view,
  * one at a time. A MutationObserver finds the placeholders of nodes that
  * arrive later (lazy document chunks, nodes updated after a save).
  */
 
 const BASE_URL = new URL(".", import.meta.url);
-const MODEL_FILES_URL = "/actions/sysml/model_files";
+const MODEL_FILES_URL = "/sysml/model_files";
 const NODE_LINKS = "links=/?a={id}";
 
 let enginePromise = null;

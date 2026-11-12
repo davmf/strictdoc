@@ -1,0 +1,43 @@
+{% extends "base.jinja.html" %}
+{% set template_type = "Workspace" %}
+
+{% block head_css %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ view_object.render_static_url('plantuml/sysml/workspace.css') }}"/>
+{% endblock head_css %}
+
+{% block head_scripts %}
+  {{ super() }}
+  <script type="module" src="{{ view_object.render_static_url('plantuml/sysml/workspace.js') }}"></script>
+  <script type="module" src="{{ view_object.render_static_url('plantuml/sysml/sysml-diagrams.js') }}"></script>
+{% endblock head_scripts %}
+
+{% block title %}{{ view_object.page_title() }}{% endblock title %}
+
+{% block viewtype %}sysml-workspace{% endblock viewtype %}
+
+{% block layout_nav %}
+  {% include "_shared/nav.jinja.html" %}
+{% endblock layout_nav %}
+
+{% block tree_content %}
+  {% include "features/sysml_workspace/tree.jinja" %}
+{% endblock tree_content %}
+
+{% block toc_content %}
+  <div class="sysml-ws-side" id="sysml-ws-side" data-testid="sysml-workspace-side">
+    {% include "features/sysml_workspace/side.jinja" %}
+  </div>
+{% endblock toc_content %}
+
+{% block header_content %}
+  {%- with header__pagetype=template_type -%}
+    {% include "components/header/index.jinja" %}
+  {%- endwith -%}
+{% endblock header_content %}
+
+{% block main_content %}
+  <div class="sysml-ws-main" id="sysml-ws-main" data-testid="sysml-workspace-main">
+    {% include "features/sysml_workspace/main.jinja" %}
+  </div>
+{% endblock main_content %}

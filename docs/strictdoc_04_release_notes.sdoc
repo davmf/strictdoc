@@ -107,6 +107,13 @@ sequence or another item of a SysML profile shows its diagram, a ``view``
 item shows a saved diagram, and the other items have a ``Traces`` button for
 their trace diagram. A click on a box opens its node. StrictDoc reads
 ``library package`` files, such as the SysML profiles.
+
+10\) In the tracker layout, the Web UI has a workspace screen at
+``/workspace``: the tree of all trackers, folders and items on the left, the
+selected entry with its diagram in the middle, and its relations and Git
+history on the right. It creates trackers, folders and items, with templates
+for requirements, test cases, parts, state machines, sequences and timing
+diagrams.
 <<<
 
 [[/SECTION]]

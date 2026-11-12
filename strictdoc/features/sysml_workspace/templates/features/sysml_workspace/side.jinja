@@ -1,0 +1,63 @@
+{%- set entry = view_object.selected -%}
+<section class="sysml-ws-side-section" data-testid="sysml-workspace-relations">
+  <h2>Relations</h2>
+  {%- if not entry.outgoing and not entry.incoming %}
+  <p class="sysml-ws-muted">None.</p>
+  {%- endif %}
+  {%- if entry.outgoing %}
+  <h3>To</h3>
+  <ul class="sysml-ws-relations">
+    {%- for relation in entry.outgoing %}
+    <li>
+      <span class="sysml-ws-role">{{ relation.role }}</span>
+      <a href="{{ view_object.entry_url(relation.entry) }}" data-entry-id="{{ relation.entry.entry_id }}">
+        {%- with entry = relation.entry %}{% include "features/sysml_workspace/icon.jinja" %}{% endwith -%}
+        {{ relation.entry.entry_id }}</a>
+      <span class="sysml-ws-muted">{{ relation.entry.title }}</span>
+    </li>
+    {%- endfor %}
+  </ul>
+  {%- endif %}
+  {%- if entry.incoming %}
+  <h3>From</h3>
+  <ul class="sysml-ws-relations">
+    {%- for relation in entry.incoming %}
+    <li>
+      <a href="{{ view_object.entry_url(relation.entry) }}" data-entry-id="{{ relation.entry.entry_id }}">
+        {%- with entry = relation.entry %}{% include "features/sysml_workspace/icon.jinja" %}{% endwith -%}
+        {{ relation.entry.entry_id }}</a>
+      <span class="sysml-ws-role">{{ relation.role }}</span>
+      <span class="sysml-ws-muted">{{ relation.entry.title }}</span>
+    </li>
+    {%- endfor %}
+  </ul>
+  {%- endif %}
+</section>
+
+{%- set history = view_object.history(entry) -%}
+{%- if history is not none %}
+<section class="sysml-ws-side-section" data-testid="sysml-workspace-history">
+  <h2>History</h2>
+  {%- if history.change %}
+  <p class="sysml-ws-change" data-change="{{ history.change }}">
+    {%- if history.change == "untracked" %}New file, not committed yet.
+    {%- elif history.change == "added" %}Added, not committed yet.
+    {%- else %}Changes not committed yet.{% endif -%}
+  </p>
+  {%- endif %}
+  {%- if history.error %}
+  <p class="sysml-ws-muted">{{ history.error }}</p>
+  {%- elif not history.commits %}
+  <p class="sysml-ws-muted">No commits.</p>
+  {%- else %}
+  <ol class="sysml-ws-history">
+    {%- for commit in history.commits %}
+    <li title="{{ commit.commit_hash }}">
+      <div class="sysml-ws-history-subject">{{ commit.subject }}</div>
+      <div class="sysml-ws-muted"><code>{{ commit.short_hash }}</code> {{ commit.date }} &middot; {{ commit.author }}</div>
+    </li>
+    {%- endfor %}
+  </ol>
+  {%- endif %}
+</section>
+{%- endif %}

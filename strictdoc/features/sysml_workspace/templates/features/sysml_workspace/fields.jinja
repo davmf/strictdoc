@@ -1,0 +1,10 @@
+{%- if fields %}
+<dl class="sysml-ws-fields">
+  {%- for field in fields %}
+  <div class="sysml-ws-field{% if field.is_block %} sysml-ws-field-block{% endif %}" data-field="{{ field.name }}">
+    <dt>{{ field.label }}</dt>
+    <dd>{% if field.is_block %}<sdoc-autogen>{{ field.value }}</sdoc-autogen>{% else %}{{ field.value }}{% endif %}</dd>
+  </div>
+  {%- endfor %}
+</dl>
+{%- endif %}

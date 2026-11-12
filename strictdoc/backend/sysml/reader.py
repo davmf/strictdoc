@@ -360,6 +360,11 @@ def _update_diagram_node(
         as_rst_raw_html(
             diagram_options(root_name, is_design=document.autogen),
             static_directory,
+            workspace_item=(
+                root_name
+                if node_data.get_tracker(document) is not None
+                else None
+            ),
         ),
     )
     if diagram_node is not None:

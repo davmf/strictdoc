@@ -47,7 +47,7 @@ def fixture_client(tmp_path) -> TestClient:
 
 
 def test_01_model_files_are_every_sysml_file_of_the_project(client):
-    response = client.get("/actions/sysml/model_files")
+    response = client.get("/sysml/model_files")
     assert response.status_code == 200
     assert response.headers["cache-control"] == "no-store"
     files = {file_["name"]: file_["text"] for file_ in response.json()["files"]}

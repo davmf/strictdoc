@@ -31,6 +31,15 @@ def test_04_the_placeholder_loads_the_script_from_the_static_folder():
     )
 
 
+def test_04b_a_tracker_links_to_the_workspace():
+    assert as_rst_raw_html(
+        "view=definitions root=TRK-HW", "_static", workspace_item="TRK-HW"
+    ).splitlines()[2] == (
+        '    <p class="sysml-diagram-workspace">'
+        '<a href="/workspace?item=TRK-HW">Open in workspace</a></p>'
+    )
+
+
 def test_05_the_diagram_node_is_the_first_node_of_a_document():
     document = SysMLReader.read_from_string(
         "package Design {\n    part def Pump;\n}\n",

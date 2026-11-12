@@ -1,0 +1,128 @@
+{%- set entry = view_object.selected -%}
+<article class="sysml-ws-entry" data-entry-id="{{ entry.entry_id }}" data-entry-type="{{ entry.entry_type }}">
+  <nav class="sysml-ws-breadcrumbs" aria-label="Path">
+    {%- for ancestor in entry.ancestors() -%}
+      <a href="{{ view_object.entry_url(ancestor) }}" data-entry-id="{{ ancestor.entry_id }}">{{ ancestor.title }}</a>
+      <span class="sysml-ws-breadcrumbs-separator">/</span>
+    {%- endfor -%}
+  </nav>
+
+  <header class="sysml-ws-entry-header">
+    {%- include "features/sysml_workspace/icon.jinja" -%}
+    <div>
+      <div class="sysml-ws-entry-kind">
+        {{ entry.kind_label }}{% if not view_object.is_model(entry) %} &middot; <span data-testid="sysml-workspace-entry-id">{{ entry.entry_id }}</span>{% endif %}
+      </div>
+      <h1 class="sysml-ws-entry-title" data-testid="sysml-workspace-entry-title">{{ entry.title }}</h1>
+      {%- if entry.relative_path %}
+      <div class="sysml-ws-entry-file">{{ entry.relative_path }}</div>
+      {%- endif %}
+    </div>
+    {%- set document_url = view_object.document_url(entry) -%}
+    {%- if document_url %}
+    <a class="sysml-ws-button" href="{{ document_url }}" data-testid="sysml-workspace-open-document">Open in document</a>
+    {%- endif %}
+  </header>
+
+  {%- if view_object.error_message %}
+  <div class="sysml-ws-error" role="alert" data-testid="sysml-workspace-error">{{ view_object.error_message }}</div>
+  {%- endif %}
+
+  {%- if view_object.is_model(entry) and view_object.workspace.errors %}
+  <div class="sysml-ws-error" role="alert">
+    {%- for error in view_object.workspace.errors %}
+    <pre>{{ error }}</pre>
+    {%- endfor %}
+  </div>
+  {%- endif %}
+
+  {%- with fields = view_object.fields(entry) -%}
+    {% include "features/sysml_workspace/fields.jinja" %}
+  {%- endwith %}
+
+  {%- set options = view_object.diagram_options(entry) -%}
+  {%- if options %}
+  <section class="sysml-ws-section">
+    <h2>Diagram</h2>
+    <div class="sysml-diagram sysml-ws-diagram" data-sysml-options="{{ options }}" data-testid="sysml-workspace-diagram"></div>
+  </section>
+  {%- endif %}
+
+  {%- set member_fields = view_object.fields(entry, members=True) -%}
+  {%- if member_fields %}
+  <details class="sysml-ws-section sysml-ws-members">
+    <summary>Members</summary>
+    {%- with fields = member_fields -%}
+      {% include "features/sysml_workspace/fields.jinja" %}
+    {%- endwith %}
+  </details>
+  {%- endif %}
+
+  {%- if entry.children %}
+  <section class="sysml-ws-section">
+    <h2>{{ "Trackers" if view_object.is_model(entry) else "Contents" }}</h2>
+    <table class="sysml-ws-table" data-testid="sysml-workspace-contents">
+      <thead><tr><th>ID</th><th>Title</th><th>Kind</th><th>Items</th></tr></thead>
+      <tbody>
+        {%- for child in entry.children %}
+        <tr>
+          <td><a href="{{ view_object.entry_url(child) }}" data-entry-id="{{ child.entry_id }}">{{ child.entry_id }}</a></td>
+          <td>{{ child.title }}</td>
+          <td>{% with entry = child %}{% include "features/sysml_workspace/icon.jinja" %}{% endwith %} {{ child.kind_label }}</td>
+          <td>{{ child.items() | length if child.children else "" }}</td>
+        </tr>
+        {%- endfor %}
+      </tbody>
+    </table>
+  </section>
+  {%- endif %}
+
+  {%- if view_object.is_container(entry) %}
+  {%- set templates = view_object.item_templates(entry) -%}
+  <section class="sysml-ws-section sysml-ws-edit" data-testid="sysml-workspace-new">
+    <h2>New</h2>
+    {%- if templates %}
+    <form class="sysml-ws-form" method="post" action="/actions/sysml/workspace/new_item" data-testid="sysml-workspace-new-item">
+      <input type="hidden" name="parent" value="{{ entry.entry_id }}"/>
+      <select name="kind" aria-label="Kind of the new item">
+        {%- for template in templates %}
+        <option value="{{ template.key }}"{% if view_object.form_value('kind') == template.key %} selected{% endif %}>{{ template.label }}</option>
+        {%- endfor %}
+      </select>
+      <input type="text" name="title" placeholder="Title of the new item" aria-label="Title of the new item" required
+        value="{{ view_object.form_value('title') if view_object.form_value('form') == 'item' else '' }}"/>
+      <button type="submit" class="sysml-ws-button">Create item</button>
+    </form>
+    {%- endif %}
+    <form class="sysml-ws-form" method="post" action="/actions/sysml/workspace/new_folder" data-testid="sysml-workspace-new-folder">
+      <input type="hidden" name="parent" value="{{ entry.entry_id }}"/>
+      <input type="text" name="title" placeholder="Title of the new folder" aria-label="Title of the new folder" required
+        value="{{ view_object.form_value('title') if view_object.form_value('form') == 'folder' else '' }}"/>
+      <button type="submit" class="sysml-ws-button">Create folder</button>
+    </form>
+  </section>
+  {%- elif view_object.is_model(entry) %}
+  <section class="sysml-ws-section sysml-ws-edit" data-testid="sysml-workspace-new">
+    <h2>New tracker</h2>
+    <form class="sysml-ws-form" method="post" action="/actions/sysml/workspace/new_tracker" data-testid="sysml-workspace-new-tracker">
+      <input type="text" name="title" placeholder="Title" aria-label="Title of the new tracker" required value="{{ view_object.form_value('title') }}"/>
+      <select name="kind" aria-label="Kind of the new tracker">
+        {%- for kind in view_object.tracker_kinds %}
+        <option value="{{ kind }}"{% if view_object.form_value('kind') == kind %} selected{% endif %}>{{ kind }}</option>
+        {%- endfor %}
+      </select>
+      <input type="text" name="prefix" placeholder="Prefix (SYS)" aria-label="Prefix of the IDs of the new tracker" required
+        pattern="[A-Z][A-Z0-9]*" size="8" value="{{ view_object.form_value('prefix') }}"/>
+      <button type="submit" class="sysml-ws-button">Create tracker</button>
+    </form>
+  </section>
+  {%- endif %}
+
+  {%- set source = view_object.source_text(entry) -%}
+  {%- if source is not none %}
+  <details class="sysml-ws-section sysml-ws-source">
+    <summary>Source</summary>
+    <pre data-testid="sysml-workspace-source">{{ source }}</pre>
+  </details>
+  {%- endif %}
+</article>

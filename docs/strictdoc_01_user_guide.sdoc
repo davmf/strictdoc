@@ -6139,6 +6139,42 @@ On the workspace screen:
 
 [[/SECTION]]
 
+[[SECTION]]
+MID: 2b703808f9dc4329a9efd7e311ab89b6
+UID: SECTION-UG-SysML-source-editor
+TITLE: Editing the SysML source
+
+[TEXT]
+MID: 2a010c19002d4b51a70a08f963c6bbe6
+STATEMENT: >>>
+``Edit source``, under ``Source`` on the workspace screen, opens the file of
+an item, a folder, a tracker or the model root in a SysML editor. The editor
+highlights SysML v2, folds blocks, and has the multi-cursor and search keys
+of CodeMirror. It is the editor of the PlantUML SysML playground.
+
+As the text is typed:
+
+- StrictDoc checks it: the text must parse, and hold one top-level package
+  named by the ID of the file. A problem shows under the editor, with a
+  button that moves the cursor to its line.
+- When there is no problem, the diagram of the entry shows a preview of the
+  text before it is saved.
+
+``Save source`` (or Ctrl+S, Cmd+S on macOS) writes the file and reads the
+model again. StrictDoc refuses the save, keeps the text in the editor, and
+leaves the file as it was in these cases:
+
+- the text has a problem;
+- the file changed on disk since the editor opened it;
+- with the text, the tracker of the file no longer reads, for example
+  because an include names no file.
+
+Leaving the page with text that is not saved asks first. Nothing is
+committed.
+<<<
+
+[[/SECTION]]
+
 [[/SECTION]]
 
 [[SECTION]]

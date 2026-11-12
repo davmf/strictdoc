@@ -435,3 +435,70 @@ details.sysml-ws-edit > summary {
   cursor: pointer;
   font-weight: 600;
 }
+
+/* Source editor: the SysML editor of the PlantUML playground
+   (sysml-editor.js, CodeMirror 6). */
+
+.sysml-ws-source-form {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.sysml-ws-source-form .cm-host,
+.sysml-ws-source-text {
+  box-sizing: border-box;
+  width: 100%;
+  height: 30rem;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+  background: #fff;
+  font-family: monospace;
+  font-size: 0.85rem;
+}
+
+.sysml-ws-source-form .cm-host .cm-editor {
+  height: 100%;
+}
+
+.sysml-ws-editor-toolbar {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.sysml-ws-editor-toolbar button {
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.sysml-ws-problems {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: #b00020;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+}
+
+.sysml-ws-problem-line {
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.sysml-ws-source > .sysml-ws-button {
+  margin: 0.5rem 0;
+}
+
+.cm-host .tok-keyword { color: #8839ef; }
+.cm-host .tok-comment { color: #7c7f93; font-style: italic; }
+.cm-host .tok-string { color: #40a02b; }
+.cm-host .tok-number,
+.cm-host .tok-atom,
+.cm-host .tok-bool { color: #fe640b; }
+.cm-host .tok-meta { color: #df8e1d; }
+.cm-host .tok-macroName,
+.cm-host .tok-variableName2 { color: #179299; }
+.cm-host .tok-labelName { color: #ea76cb; }
+.cm-host .tok-typeName { color: #1e66f5; }
+.cm-host .tok-definition { color: #d20f39; font-weight: 600; }
+.cm-host .tok-operator,
+.cm-host .tok-punctuation { color: #5c5f77; }

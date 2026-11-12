@@ -438,3 +438,77 @@ def test_16_a_bad_view_keeps_what_was_typed(client, project):
     assert ">a */ b</textarea>" in response.text
     assert 'value="transitions=all"' in response.text
     assert _read(project, "TRK-BEH/VIEW-001.sysml") == before
+
+
+def _base_hash(html: str) -> str:
+    match_ = re.search(r'name="base_hash" value="([0-9a-f]+)"', html)
+    assert match_ is not None
+    return match_.group(1)
+
+
+def test_17_the_source_editor_saves_the_file(client, project):
+    html = client.get(
+        "/workspace", params={"item": "SYS-002", "edit": "source"}
+    ).text
+    assert 'data-testid="sysml-workspace-source-form"' in html
+    assert "_static/plantuml/sysml/workspace.js" in html
+    text = _read(project, "TRK-SYS/SYS-002.sysml")
+    new_text = text.replace("'Keep warm'", "'Keep the water warm'")
+    response = client.post(
+        "/actions/sysml/workspace/save_source",
+        data={
+            "item": "SYS-002",
+            "text": new_text,
+            "base_hash": _base_hash(html),
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/workspace?item=SYS-002"
+    assert _read(project, "TRK-SYS/SYS-002.sysml") == new_text
+    html = client.get("/workspace", params={"item": "SYS-002"}).text
+    assert (
+        'data-testid="sysml-workspace-entry-title">Keep the water warm<'
+    ) in html
+
+
+def test_18_check_source_names_the_problem(client, project):
+    response = client.post(
+        "/workspace/check_source",
+        data={
+            "item": "SYS-002",
+            "text": "package 'SYS-002' {\n  part x {\n}\n",
+        },
+    )
+    assert response.status_code == 200
+    result = response.json()
+    assert result["name"] == "TRK-SYS/SYS-002.sysml"
+    assert result["problems"][0]["line"] == 4
+    response = client.post(
+        "/workspace/check_source",
+        data={
+            "item": "SYS-002",
+            "text": _read(project, "TRK-SYS/SYS-002.sysml"),
+        },
+    )
+    assert response.json()["problems"] == []
+
+
+def test_19_a_refused_save_keeps_the_typed_text(client, project):
+    html = client.get(
+        "/workspace", params={"item": "SYS-002", "edit": "source"}
+    ).text
+    before = _read(project, "TRK-SYS/SYS-002.sysml")
+    response = client.post(
+        "/actions/sysml/workspace/save_source",
+        data={
+            "item": "SYS-002",
+            "text": "package 'SYS-999' {\n}\n",
+            "base_hash": _base_hash(html),
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 422
+    assert "expected &#39;SYS-002&#39;" in response.text
+    assert "package &#39;SYS-999&#39; {\n}\n</textarea>" in response.text
+    assert _read(project, "TRK-SYS/SYS-002.sysml") == before

@@ -1,4 +1,5 @@
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import Select
 
 from tests.end2end.helpers.screens.screen import Screen
@@ -129,6 +130,49 @@ class Screen_SysMLWorkspace(Screen):  # pylint: disable=invalid-name
         self.test_case.click_xpath(
             "//*[@data-testid='sysml-workspace-view-save']"
         )
+
+    def do_open_source_editor(self) -> None:
+        self.test_case.click_xpath(
+            "//details[contains(@class, 'sysml-ws-source')]/summary"
+        )
+        self.test_case.click_xpath(
+            "//*[@data-testid='sysml-workspace-edit-source']"
+        )
+        self.test_case.assert_element(
+            "//form[@data-editor-ready='true']", by=By.XPATH
+        )
+
+    def do_type_after_line(self, line_text: str, text: str) -> None:
+        """Type a new line in the source editor after the line with line_text."""
+        line = self.test_case.find_element(
+            f"//div[contains(@class, 'cm-line')][contains(., \"{line_text}\")]",
+            by=By.XPATH,
+        )
+        line.click()
+        line.send_keys(Keys.END, Keys.ENTER, text)
+
+    def do_type_in_source(self, keys: str) -> None:
+        self.test_case.find_element(
+            "//div[contains(@class, 'cm-content')]", by=By.XPATH
+        ).send_keys(keys)
+
+    def assert_source_problems(self, count: int) -> None:
+        self.test_case.assert_element(
+            f"//form[@data-problems='{count}']", by=By.XPATH, timeout=30
+        )
+
+    def assert_source_preview(self) -> None:
+        self.test_case.assert_element(
+            "//*[@data-testid='sysml-workspace-source-state']"
+            "[@data-state='preview']",
+            by=By.XPATH,
+            timeout=DIAGRAM_TIMEOUT_SECONDS,
+        )
+
+    def do_save_source_with_shortcut(self) -> None:
+        self.test_case.find_element(
+            "//div[contains(@class, 'cm-content')]", by=By.XPATH
+        ).send_keys(Keys.CONTROL, "s")
 
     @staticmethod
     def _tree_link(entry_id: str) -> str:

@@ -11,6 +11,11 @@ Server endpoints of the SysML workspace screen.
 - POST /actions/sysml/workspace/new_view: save the diagram of an entry as a
   new view item.
 - POST /actions/sysml/workspace/save_view: save the fields of a view.
+- GET  /workspace?item=<ID>&edit=source: the screen with the SysML editor
+  of the file of the entry.
+- POST /workspace/check_source: the problems of the text of the editor, as
+  JSON. It writes nothing.
+- POST /actions/sysml/workspace/save_source: save the text of the editor.
 - POST /workspace/view_source: the text of a view file for the fields of the
   view editor, as JSON, for the preview. It writes nothing.
 
@@ -32,6 +37,10 @@ from strictdoc import environment
 from strictdoc.core.project_config import ProjectConfig
 from strictdoc.export.html.html_templates import JinjaEnvironment
 from strictdoc.export.html.jinja.assert_extension import AssertExtension
+from strictdoc.features.sysml_workspace.sources import (
+    check_source,
+    save_source,
+)
 from strictdoc.features.sysml_workspace.templates import (
     WorkspaceEditError,
     create_folder,
@@ -95,6 +104,7 @@ def create_sysml_workspace_router(
         item: Optional[str],
         error_message: Optional[str] = None,
         form_values: Optional[Dict[str, str]] = None,
+        edit_source: bool = False,
     ) -> Optional[WorkspaceViewObject]:
         selected = (
             workspace.root
@@ -109,6 +119,7 @@ def create_sysml_workspace_router(
             selected=selected,
             error_message=error_message,
             form_values=form_values,
+            edit_source=edit_source,
         )
 
     def render_screen(
@@ -121,8 +132,12 @@ def create_sysml_workspace_router(
         )
 
     @router.get("/workspace", response_class=HTMLResponse)
-    def get_workspace(item: Optional[str] = None) -> Response:
-        view_object = view_object_for(read_workspace(), item)
+    def get_workspace(
+        item: Optional[str] = None, edit: Optional[str] = None
+    ) -> Response:
+        view_object = view_object_for(
+            read_workspace(), item, edit_source=edit == "source"
+        )
         if view_object is None:
             return HTMLResponse(
                 content=f"No entry '{item}' in the workspace.",
@@ -162,6 +177,7 @@ def create_sysml_workspace_router(
                 parent_id,
                 error_message=create_error,
                 form_values=form_values,
+                edit_source=form_values.get("form") == "source",
             )
             assert view_object is not None
             return render_screen(
@@ -295,6 +311,48 @@ def create_sysml_workspace_router(
                 "plantuml": plantuml,
             },
             save,
+        )
+
+    @router.post(
+        "/actions/sysml/workspace/save_source",
+        dependencies=[Depends(require_editor)],
+    )
+    def post_save_source(
+        request: Request,
+        item: str = Form(...),
+        text: str = Form(""),
+        base_hash: str = Form(""),
+    ) -> Response:
+        return create(
+            request,
+            item,
+            {"form": "source", "text": text, "base_hash": base_hash},
+            lambda workspace_: save_source(workspace_, item, text, base_hash),
+        )
+
+    @router.post("/workspace/check_source", response_class=JSONResponse)
+    def post_check_source(
+        item: str = Form(...), text: str = Form("")
+    ) -> Response:
+        entry = read_workspace().get(item)
+        if entry is None:
+            return JSONResponse(
+                {"error": f"No entry '{item}' in the workspace."},
+                status_code=HTTP_STATUS_NOT_FOUND,
+            )
+        return JSONResponse(
+            {
+                "name": entry.relative_path,
+                "problems": [
+                    {
+                        "message": problem_.message,
+                        "line": problem_.line,
+                        "column": problem_.column,
+                    }
+                    for problem_ in check_source(entry, text)
+                ],
+            },
+            headers=NO_STORE,
         )
 
     @router.post("/workspace/view_source", response_class=JSONResponse)

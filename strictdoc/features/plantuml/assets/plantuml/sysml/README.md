@@ -18,3 +18,14 @@ The browser draws the diagrams of SysML documents with these files:
 
 Graphviz (`../viz-global.js`, Viz.js 3.24.0) is shared with the PlantUML
 code blocks of StrictDoc.
+
+The workspace screen (`strictdoc/features/sysml_workspace`) also uses:
+
+- `workspace.js`, `workspace.css`: the scripts and styles of the screen.
+- `sysml-editor.js`: the SysML editor of the PlantUML playground, copied
+  unchanged from the PlantUML fork (`src/main/teavm/web/sysml-editor.js`,
+  branch `feature/strictdoc-workspace`). It imports
+  `vendor/codemirror-6.min.js`.
+- `vendor/codemirror-6.min.js`: CodeMirror 6, MIT license
+  (`vendor/codemirror-LICENSE.txt`), the bundle of the PlantUML fork
+  (`src/main/teavm/vendor/`; its README gives the build).

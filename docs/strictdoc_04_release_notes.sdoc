@@ -119,6 +119,11 @@ diagrams.
 folder as a ``view`` item, and edits views with a live preview: the exposed
 elements (a state of a state machine, for example), the options and extra
 PlantUML lines. The relations of an item list its views.
+
+12\) The workspace screen edits the SysML source of a file in a SysML
+editor (CodeMirror 6, from the PlantUML playground). The text is checked as
+it is typed, the diagram previews it, and a save that would break the
+tracker or overwrite a change made on disk is refused.
 <<<
 
 [[/SECTION]]

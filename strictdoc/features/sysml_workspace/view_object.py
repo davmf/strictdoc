@@ -3,7 +3,6 @@ Provide the workspace, the selected entry and the forms to the templates of
 the workspace screen.
 """
 
-import os
 import posixpath
 import re
 from typing import Dict, List, Optional
@@ -22,6 +21,10 @@ from strictdoc.export.html.renderers.link_renderer import LinkRenderer
 from strictdoc.features.sysml_workspace.history import (
     FileHistory,
     file_history,
+)
+from strictdoc.features.sysml_workspace.sources import (
+    read_source,
+    source_hash,
 )
 from strictdoc.features.sysml_workspace.templates import (
     TRACKER_KINDS,
@@ -44,7 +47,6 @@ from strictdoc.features.sysml_workspace.workspace import (
     Workspace,
     WorkspaceEntry,
 )
-from strictdoc.helpers.file_system import file_open_read_utf8
 
 WORKSPACE_URL = "/workspace"
 ITEM_LINK_PATTERN = WORKSPACE_URL + "?item={id}"
@@ -89,11 +91,13 @@ class WorkspaceViewObject:
         selected: WorkspaceEntry,
         error_message: Optional[str] = None,
         form_values: Optional[Dict[str, str]] = None,
+        edit_source: bool = False,
     ) -> None:
         self.project_config: ProjectConfig = project_config
         self.workspace: Workspace = workspace
         self.selected: WorkspaceEntry = selected
         self.error_message: Optional[str] = error_message
+        self.edit_source: bool = edit_source
         self.form_values: Dict[str, str] = (
             form_values if form_values is not None else {}
         )
@@ -240,10 +244,22 @@ class WorkspaceViewObject:
         return result
 
     def source_text(self, entry: WorkspaceEntry) -> Optional[str]:
-        if entry.file_path is None or not os.path.isfile(entry.file_path):
+        return read_source(entry)
+
+    def source_form(self, entry: WorkspaceEntry) -> Optional[Dict[str, str]]:
+        """The text and base hash of the editor: as typed after an error."""
+        if self.form_values.get("form") == "source":
+            return {
+                "text": self.form_values.get("text", ""),
+                "base_hash": self.form_values.get("base_hash", ""),
+            }
+        text = read_source(entry)
+        if text is None:
             return None
-        with file_open_read_utf8(entry.file_path) as file_:
-            return file_.read()
+        return {"text": text, "base_hash": source_hash(text)}
+
+    def edit_source_url(self, entry: WorkspaceEntry) -> str:
+        return self.entry_url(entry) + "&edit=source"
 
     def history(self, entry: WorkspaceEntry) -> Optional[FileHistory]:
         if entry.file_path is None:

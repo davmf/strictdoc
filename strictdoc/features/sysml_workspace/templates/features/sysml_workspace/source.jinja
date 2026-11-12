@@ -1,0 +1,37 @@
+{%- if view_object.edit_source %}
+{%- set source_form = view_object.source_form(entry) -%}
+{%- if source_form is not none %}
+<section class="sysml-ws-section sysml-ws-edit" data-testid="sysml-workspace-source-editor">
+  <h2>Source</h2>
+  <form
+    class="sysml-ws-source-form"
+    method="post"
+    action="/actions/sysml/workspace/save_source"
+    data-item="{{ entry.entry_id }}"
+    data-name="{{ entry.relative_path or '' }}"
+    data-testid="sysml-workspace-source-form"
+  >
+    <input type="hidden" name="item" value="{{ entry.entry_id }}"/>
+    <input type="hidden" name="base_hash" value="{{ source_form.base_hash }}"/>
+    <div class="sysml-ws-editor-toolbar"></div>
+    <textarea class="sysml-ws-source-text" name="text" rows="24" spellcheck="false"
+      data-testid="sysml-workspace-source-text">{{ source_form.text }}</textarea>
+    <ul class="sysml-ws-problems" role="status" data-testid="sysml-workspace-problems"></ul>
+    <div class="sysml-ws-view-actions">
+      <button type="submit" class="sysml-ws-button" data-testid="sysml-workspace-source-save">Save source</button>
+      <a class="sysml-ws-button" href="{{ view_object.entry_url(entry) }}" data-entry-id="{{ entry.entry_id }}">Cancel</a>
+      <span class="sysml-ws-preview-state" data-testid="sysml-workspace-source-state"></span>
+    </div>
+  </form>
+</section>
+{%- endif %}
+{%- else %}
+{%- set source = view_object.source_text(entry) -%}
+{%- if source is not none %}
+<details class="sysml-ws-section sysml-ws-source">
+  <summary>Source</summary>
+  <a class="sysml-ws-button sysml-ws-edit" href="{{ view_object.edit_source_url(entry) }}" data-testid="sysml-workspace-edit-source">Edit source</a>
+  <pre data-testid="sysml-workspace-source">{{ source }}</pre>
+</details>
+{%- endif %}
+{%- endif %}

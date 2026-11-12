@@ -128,11 +128,5 @@
   </section>
   {%- endif %}
 
-  {%- set source = view_object.source_text(entry) -%}
-  {%- if source is not none %}
-  <details class="sysml-ws-section sysml-ws-source">
-    <summary>Source</summary>
-    <pre data-testid="sysml-workspace-source">{{ source }}</pre>
-  </details>
-  {%- endif %}
+  {% include "features/sysml_workspace/source.jinja" %}
 </article>

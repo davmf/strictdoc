@@ -18,6 +18,12 @@
  *   view file for the fields (/workspace/view_source, nothing is saved), and
  *   the diagram of the view is drawn with that text (drawWithFile()).
  *
+ * - The source editor (?edit=source) turns its textarea into the SysML
+ *   editor of the PlantUML playground (sysml-editor.js, CodeMirror 6). As
+ *   the text is typed, the server checks it (/workspace/check_source,
+ *   nothing is saved) and the diagram of the entry is drawn with it.
+ *   Ctrl/Cmd+S saves; leaving the page with unsaved text asks first.
+ *
  * Without the script, every link loads the whole screen.
  */
 
@@ -28,6 +34,7 @@ const PANES_URL = "/workspace/panes";
 const EXPANDED_KEY = "strictdoc.sysmlWorkspace.expanded";
 const VIEW_SOURCE_URL = "/workspace/view_source";
 const PREVIEW_DELAY_MS = 500;
+const CHECK_SOURCE_URL = "/workspace/check_source";
 
 function tree() {
   return document.querySelector(".sysml-ws-tree");
@@ -101,6 +108,10 @@ function linkedEntryId(link) {
   }
   const url = new URL(href, window.location.href);
   if (url.origin !== window.location.origin || url.pathname !== WORKSPACE_PATH) {
+    return null;
+  }
+  if (url.searchParams.has("edit")) {
+    // The source editor is a page of its own.
     return null;
   }
   return url.searchParams.get("item") || "";
@@ -278,7 +289,139 @@ document.addEventListener("keydown", (event) => {
     addExposeLine(event.target.closest("form"));
   }
 });
+// The source editor.
+
+let sourceEditor = null;
+let sourceTimer = null;
+let sourceRun = 0;
+let sourceDirty = false;
+let submitting = false;
+
+async function setupSourceEditor(form) {
+  const textarea = form.querySelector("textarea.sysml-ws-source-text");
+  // The editor replaces the textarea: the form posts a hidden copy.
+  const text = document.createElement("input");
+  text.type = "hidden";
+  text.name = "text";
+  text.value = textarea.value;
+  textarea.removeAttribute("name");
+  form.append(text);
+  const { createSysmlEditor, addFoldButtons } = await import("./sysml-editor.js");
+  sourceEditor = createSysmlEditor(textarea, (value) => {
+    text.value = value;
+    sourceDirty = true;
+    clearTimeout(sourceTimer);
+    sourceTimer = setTimeout(() => checkSource(form), PREVIEW_DELAY_MS);
+  }, { indent: "    " });
+  sourceEditor.setFile({ name: form.dataset.name, text: text.value });
+  addFoldButtons(form.querySelector(".sysml-ws-editor-toolbar"), sourceEditor.view, "sysml");
+  form.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+      event.preventDefault();
+      form.requestSubmit();
+    }
+  });
+  form.dataset.editorReady = "true";
+  if (document.querySelector('[data-testid="sysml-workspace-error"]') !== null) {
+    // The server refused a save: show where.
+    checkSource(form);
+  }
+}
+
+function goToLine(line, column) {
+  const view = sourceEditor.view;
+  const target = view.state.doc.line(Math.min(Math.max(line, 1), view.state.doc.lines));
+  const position = Math.min(target.from + Math.max((column || 1) - 1, 0), target.to);
+  view.dispatch({ selection: { anchor: position }, scrollIntoView: true });
+  view.focus();
+}
+
+function showProblems(form, problems) {
+  const list = form.querySelector(".sysml-ws-problems");
+  list.replaceChildren();
+  for (const problem_ of problems) {
+    const item = document.createElement("li");
+    if (problem_.line !== null && problem_.line !== undefined) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "sysml-ws-problem-line";
+      button.textContent = `Line ${problem_.line}`;
+      button.addEventListener("click", () => goToLine(problem_.line, problem_.column));
+      item.append(button, " ");
+    }
+    item.append(problem_.message);
+    list.append(item);
+  }
+  form.dataset.problems = String(problems.length);
+}
+
+async function checkSource(form) {
+  const run = ++sourceRun;
+  const state = form.querySelector(".sysml-ws-preview-state");
+  const body = new FormData();
+  body.append("item", form.dataset.item);
+  body.append("text", form.elements.text.value);
+  state.textContent = "Checking...";
+  state.dataset.state = "busy";
+  try {
+    const response = await fetch(CHECK_SOURCE_URL, { method: "POST", body, cache: "no-store" });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || `HTTP ${response.status}`);
+    }
+    if (run !== sourceRun) {
+      return;
+    }
+    showProblems(form, result.problems);
+    if (result.problems.length > 0) {
+      state.textContent = "";
+      state.dataset.state = "error";
+      return;
+    }
+    const placeholder = document.querySelector(
+      '#sysml-ws-main [data-testid="sysml-workspace-diagram"]'
+    );
+    if (placeholder === null) {
+      state.textContent = sourceDirty ? "No problems. Not saved yet." : "No problems.";
+      state.dataset.state = "preview";
+      return;
+    }
+    const svg = await drawWithFile(
+      placeholder.dataset.sysmlOptions,
+      result.name,
+      form.elements.text.value
+    );
+    if (run !== sourceRun) {
+      return;
+    }
+    placeholder.innerHTML = svg;
+    placeholder.dataset.sysmlState = "drawn";
+    placeholder.dataset.sysmlPreview = "true";
+    state.textContent = "Preview: not saved yet.";
+    state.dataset.state = "preview";
+  } catch (error) {
+    if (run !== sourceRun) {
+      return;
+    }
+    state.textContent = error && error.message ? error.message : String(error);
+    state.dataset.state = "error";
+  }
+}
+
+window.addEventListener("beforeunload", (event) => {
+  if (sourceDirty && !submitting) {
+    event.preventDefault();
+    event.returnValue = "";
+  }
+});
+
+const sourceForm = document.querySelector(".sysml-ws-source-form");
+if (sourceForm !== null) {
+  setupSourceEditor(sourceForm);
+}
+
 document.addEventListener("submit", () => {
+  submitting = true;
   if (window.ws instanceof WebSocket) {
     window.ws.onmessage = null;
   }

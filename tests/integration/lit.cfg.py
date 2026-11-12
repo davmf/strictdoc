@@ -86,6 +86,9 @@ if not lit_config.isWindows:
 if shutil.which("nix") is not None:
     config.available_features.add("NIX_AVAILABLE")
 
+if shutil.which("typst") is not None:
+    config.available_features.add("TYPST_AVAILABLE")
+
 if "TEST_HTML2PDF" in lit_config.params:
     config.name = "StrictDoc HTML2PDF integration tests"
 

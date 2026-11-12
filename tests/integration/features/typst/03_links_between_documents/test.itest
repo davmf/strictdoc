@@ -1,0 +1,19 @@
+#
+# Each document becomes one .typ file in a single folder, named after its
+# path, because typst-doc-builder compiles the files of one folder. A link or
+# relation to a node of another document names that document, since the node
+# is not in the same PDF.
+#
+
+RUN: %strictdoc export --formats=typst --output-dir %T "%S/input" | filecheck %s --dump-input=fail
+CHECK: Step 'Export SDoc' took
+
+RUN: %cat "%T/typst/software-requirements.typ" | filecheck %s --dump-input=fail --check-prefix CHECK-SW
+CHECK-SW:   doc_no: "298_1002",
+CHECK-SW:   version: "03",
+CHECK-SW: The software shall drive the display of #sd-external-link([Display], [System Requirements]).
+CHECK-SW-SAME: parents: ([#sd-external-link([SYS\-1], [System Requirements])],)
+
+RUN: %cat "%T/typst/system-requirements.typ" | filecheck %s --dump-input=fail --check-prefix CHECK-SYS
+CHECK-SYS:   doc_no: "298_1001",
+CHECK-SYS: children: ([#sd-external-link([SW\-1], [Software Requirements])],)

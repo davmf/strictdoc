@@ -1,0 +1,145 @@
+[DOCUMENT]
+TITLE: Widget Software Requirements
+UID: 298_1013
+DATE: 2026-10-29
+METADATA:
+  AUTHOR: Jo Bloggs
+  AUTHOR_ROLE: Principal Software Engineer
+
+[GRAMMAR]
+ELEMENTS:
+- TAG: TEXT
+  FIELDS:
+  - TITLE: UID
+    TYPE: String
+    REQUIRED: False
+  - TITLE: STATEMENT
+    TYPE: String
+    REQUIRED: True
+- TAG: REQUIREMENT
+  FIELDS:
+  - TITLE: UID
+    TYPE: String
+    REQUIRED: False
+  - TITLE: STATUS
+    TYPE: String
+    REQUIRED: False
+  - TITLE: TITLE
+    TYPE: String
+    REQUIRED: False
+  - TITLE: STATEMENT
+    TYPE: String
+    REQUIRED: False
+  - TITLE: RATIONALE
+    TYPE: String
+    REQUIRED: False
+  - TITLE: VERIFICATION
+    TYPE: String
+    REQUIRED: False
+  RELATIONS:
+  - TYPE: Parent
+- TAG: REVISION
+  FIELDS:
+  - TITLE: REVISION
+    TYPE: String
+    REQUIRED: True
+  - TITLE: DATE
+    TYPE: String
+    REQUIRED: True
+  - TITLE: DESCRIPTION
+    TYPE: String
+    REQUIRED: True
+
+[REVISION]
+REVISION: 01
+DATE: Oct-22, 2026
+DESCRIPTION: >>>
+Initial draft for review.
+<<<
+
+[REVISION]
+REVISION: 02-draft
+DATE: Oct-29, 2026
+DESCRIPTION: >>>
+Added the *display* requirements (see [LINK: SECT-DISPLAY]).
+<<<
+
+[[SECTION]]
+UID: SECT-INTRO
+TITLE: Introduction
+
+[TEXT]
+STATEMENT: >>>
+This document specifies the widget software. Characters that Typst reads as
+markup must print as is: # * _ ` $ < > @ [ ] ~ // = - + \ and 1. at the start.
+
+[ANCHOR: ANCHOR-SCOPE, Scope]
+
+The terms are:
+
+- **Widget**: the device.
+- ``wsw``: the software, see `the site <https://example.com>`_.
+
+.. note::
+
+   A note about the scope.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
+UID: SECT-DISPLAY
+TITLE: Display
+
+[REQUIREMENT]
+UID: WSW-DSP-001
+STATUS: Approved
+TITLE: Brightness
+STATEMENT: >>>
+The software shall set the display brightness to between 10 % and 100 %.
+
+.. list-table:: Brightness levels
+   :header-rows: 1
+
+   * - Level
+     - Brightness
+   * - Low
+     - 10 %
+   * - High
+     - 100 %
+<<<
+RATIONALE: >>>
+Readable in daylight, see [LINK: ANCHOR-SCOPE].
+<<<
+VERIFICATION: T
+
+[REQUIREMENT]
+UID: WSW-DSP-002
+STATEMENT: >>>
+The software shall show the logo below at start-up:
+
+.. image:: _assets/logo.svg
+   :width: 100
+<<<
+VERIFICATION: I
+RELATIONS:
+- TYPE: Parent
+  VALUE: WSW-DSP-001
+
+[TEXT]
+STATEMENT: >>>
+The start-up sequence:
+
+.. raw:: html
+
+    <pre class="mermaid">
+    graph TD
+    A[Power on] --&gt; B(Logo)
+    </pre>
+
+.. code-block:: c
+
+   int brightness = 10;
+<<<
+
+[[/SECTION]]

@@ -3,6 +3,8 @@ import copy
 import datetime
 import os
 import re
+import shutil
+import tempfile
 import types
 import uuid
 from collections import defaultdict
@@ -70,6 +72,11 @@ from strictdoc.backend.sysml.editor import SysMLEditError
 from strictdoc.backend.sysml.model import SysMLElement
 from strictdoc.backend.sysml.parser import SysMLParser
 from strictdoc.backend.sysml.sysml_format import versioning_format_for_document
+from strictdoc.backend.typst.pdf_builder import (
+    TypstPDFBuilder,
+    TypstPDFBuilderError,
+)
+from strictdoc.backend.typst.typst_format import TypstFormat
 from strictdoc.core.analyzers.document_stats import DocumentTreeStats
 from strictdoc.core.analyzers.document_uid_analyzer import DocumentUIDAnalyzer
 from strictdoc.core.document_meta import DocumentMeta
@@ -5163,6 +5170,73 @@ def create_main_router(
             },
             media_type="application/octet-stream",
             background=BackgroundTask(cleanup_html2pdf_artifacts),
+        )
+
+    @router.get("/export_typst_pdf/{document_mid}", response_class=Response)
+    def get_export_typst_pdf(document_mid: str) -> Response:
+        """
+        Export one document to Typst and compile it to a PDF in the company
+        report style with the typst-doc-builder image.
+        """
+        if not project_config.is_activated_typst_pdf():
+            return Response(
+                content="The TYPST_PDF feature is not activated in the project config.",
+                status_code=HTTP_STATUS_PRECONDITION_FAILED,
+            )
+
+        path_to_build_dir = tempfile.mkdtemp(prefix="strictdoc_typst_pdf_")
+
+        def cleanup_typst_pdf_artifacts() -> None:
+            shutil.rmtree(path_to_build_dir, ignore_errors=True)
+
+        try:
+            # Writing the .typ file is fast. The build below runs without
+            # holding the read lock.
+            with lock_manager.acquire_subset(
+                read_ids={_compute_document_mid_lock_key(document_mid)}
+            ):
+                document = (
+                    export_action.traceability_index.get_node_by_mid_weak(
+                        MID(document_mid)
+                    )
+                )
+                if not isinstance(document, SDocDocument):
+                    cleanup_typst_pdf_artifacts()
+                    return Response(
+                        content=f"Document not found: {document_mid}",
+                        status_code=HTTP_STATUS_NOT_FOUND,
+                    )
+                TypstFormat.export_documents(
+                    traceability_index=export_action.traceability_index,
+                    project_config=project_config,
+                    documents=[document],
+                    path_to_output_dir=path_to_build_dir,
+                )
+            paths_to_pdf = TypstPDFBuilder.build(
+                project_config, path_to_build_dir
+            )
+        except TypstPDFBuilderError as exception_:
+            cleanup_typst_pdf_artifacts()
+            return Response(
+                content=exception_.message,
+                status_code=HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            )
+        except Exception:
+            cleanup_typst_pdf_artifacts()
+            raise
+
+        # The builder names the PDF after the report: doc number, version
+        # and title.
+        path_to_pdf = paths_to_pdf[0]
+        encoded_filename = quote(os.path.basename(path_to_pdf))
+        return FileResponse(
+            path=path_to_pdf,
+            status_code=200,
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
+            },
+            media_type="application/pdf",
+            background=BackgroundTask(cleanup_typst_pdf_artifacts),
         )
 
     @read_router.get(

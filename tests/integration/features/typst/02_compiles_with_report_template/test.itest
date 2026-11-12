@@ -1,0 +1,14 @@
+#
+# The exported document compiles with Typst, using stand-ins for the
+# company-report and kroki templates of the company typst-doc-builder.
+#
+
+REQUIRES: TYPST_AVAILABLE
+
+RUN: %strictdoc export --formats=typst --output-dir %T "%S/../01_company_report_document/input.sdoc" | filecheck %s --dump-input=fail
+CHECK: Step 'Export SDoc' took
+
+RUN: %cp "%S/../_template_stubs/company-report.typ" "%T/typst/company-report.typ"
+RUN: %cp "%S/../_template_stubs/kroki.typ" "%T/typst/kroki.typ"
+RUN: typst compile "%T/typst/input.typ" "%T/typst/input.pdf"
+RUN: %check_exists --file "%T/typst/input.pdf"

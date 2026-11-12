@@ -1,0 +1,9 @@
+[DOCUMENT]
+TITLE: Sample document
+UID: 298_1013
+VERSION: 02
+
+[REQUIREMENT]
+UID: REQ-1
+TITLE: Requirement 1
+STATEMENT: System shall do 1.

@@ -1,0 +1,22 @@
+#
+# Export SysML documents. The Mermaid diagram that the SysML reader puts at
+# the top of each document is for the web pages only, so the Typst export
+# leaves it out and does not import kroki.typ. The collapsible sections around
+# the SysML source are dropped without warnings.
+#
+
+RUN: %strictdoc export "%S/../../sysml/07_diagram" --formats=typst --output-dir %T --config "%S/../../sysml/07_diagram/strictdoc_config.py" | filecheck %s --dump-input=fail
+CHECK-NOT: warning: Typst export
+CHECK: Step 'Export SDoc' took
+
+RUN: %cat "%T/typst/requirements.typ" | filecheck %s --dump-input=fail --check-prefix CHECK-REQ
+CHECK-REQ-NOT: kroki
+CHECK-REQ-NOT: mermaid
+CHECK-REQ: #pagebreak()
+CHECK-REQ-NEXT: {{^$}}
+CHECK-REQ-NEXT: Requirements text below the diagram.
+
+RUN: %cat "%T/typst/design.typ" | filecheck %s --dump-input=fail --check-prefix CHECK-DESIGN
+CHECK-DESIGN-NOT: mermaid
+CHECK-DESIGN: (uid: "Diagram design::Station::heater", title: [heater]
+CHECK-DESIGN-SAME: parents: ([#sd-external-link([DGM\-REQ\-1], [Diagram requirements])],)

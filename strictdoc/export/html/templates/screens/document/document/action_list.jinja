@@ -17,6 +17,16 @@
 >{% include "icons/ico16_export.svg" %} Export to PDF</a>
 {%- endif -%}
 
+{%- if view_object.project_config.is_activated_typst_pdf() -%}
+<a
+  class="dropdown_menu_item"
+  href="/export_typst_pdf/{{ view_object.document.reserved_mid }}"
+  data-testid="document-export-typst-pdf-action"
+  role="menuitem"
+  title="Export to a PDF in the company report style. The build takes a few seconds."
+>{% include "icons/ico16_export.svg" %} Export to PDF (company report)</a>
+{%- endif -%}
+
 {%- if view_object.project_config.is_activated_reqif() -%}
 <a
   class="dropdown_menu_item"

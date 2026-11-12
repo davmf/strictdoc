@@ -34,7 +34,7 @@ Design package (autogen, edited in the web UI through editor.py):
   reference names the UID of a node (see TYPE_REFERENCE_ROLES)
 - item versions and traced versions as in requirements packages
 
-Both kinds of documents start with an autogen TEXT node that shows a Mermaid
+Both kinds of documents start with an autogen TEXT node that shows a PlantUML
 diagram of the file (see diagram.py). The writer skips this node, and the
 format rebuilds it after every save.
 

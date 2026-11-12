@@ -1,0 +1,8 @@
+[DOCUMENT]
+TITLE: System Requirements
+UID: 298_1001
+
+[REQUIREMENT]
+UID: SYS-1
+TITLE: Display
+STATEMENT: The system shall have a display.

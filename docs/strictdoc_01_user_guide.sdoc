@@ -2979,6 +2979,143 @@ without Sphinx/LaTeX, see the
 [[/SECTION]]
 
 [[SECTION]]
+MID: 9a597f2db2a84b47bd104c663173c27d
+UID: SECTION-UG-PDF-export-via-Typst
+TITLE: PDF export via Typst (company report style)
+
+[TEXT]
+MID: 0e069b5743c24eda9b3141f2b140338b
+STATEMENT: >>>
+The ``typst`` export writes each document as a `Typst <https://typst.app>`_
+file in the company report style. The company typst-doc-builder image
+compiles the files to PDF:
+
+.. code:: text
+
+    strictdoc export . --formats=typst --output-dir output
+    docker run --rm -v "$PWD/output/typst":/work \
+      registry.example.com/tools/typst-doc-builder:latest
+
+The image names each PDF ``<doc_no>_<version>-<title>.pdf``.
+
+**Output**
+
+All documents are written to the ``output/typst/`` folder, one ``.typ`` file
+per document, because the image compiles the files of a single folder. The
+file name comes from the path of the document, for example
+``docs/srs.sdoc`` becomes ``docs-srs.typ``. The folder also gets
+``strictdoc.typ``, which lays out the requirement tables, and the project
+assets in ``_assets/``.
+
+The ``company-report.typ`` template and the company logo are not part of StrictDoc. The
+image places them next to the files when it compiles them.
+
+**Report header**
+
+The document fields fill the report header and cover page:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Report
+     - Document field
+   * - Document Title
+     - ``TITLE``
+   * - Doc No.
+     - ``UID``
+   * - Version
+     - ``VERSION``, or else the revision of the last ``REVISION`` node
+   * - Project
+     - The project title (``--project-title`` or the project config)
+   * - Author name and role
+     - ``AUTHOR`` and ``AUTHOR_ROLE`` entries of the document ``METADATA``
+   * - Footer file name
+     - The file name of the document
+
+**Revision history**
+
+The revision history table on the cover page is made from the nodes of type
+``REVISION``, in document order. A ``REVISION`` node has the fields
+``REVISION`` (or ``VERSION``), ``DATE`` and ``DESCRIPTION``. The nodes are
+not written into the document body. Add the element to the document grammar:
+
+.. code:: text
+
+    [DOCUMENT]
+    TITLE: Widget Software Requirements
+    UID: 298_1013
+    METADATA:
+      AUTHOR: Jo Bloggs
+      AUTHOR_ROLE: Principal Software Engineer
+
+    [GRAMMAR]
+    ELEMENTS:
+    - TAG: REVISION
+      FIELDS:
+      - TITLE: REVISION
+        TYPE: String
+        REQUIRED: True
+      - TITLE: DATE
+        TYPE: String
+        REQUIRED: True
+      - TITLE: DESCRIPTION
+        TYPE: String
+        REQUIRED: True
+    ...
+
+    [REVISION]
+    REVISION: 01
+    DATE: Oct-22, 2026
+    DESCRIPTION: Initial draft for review.
+
+**Content**
+
+Sections become numbered headings. Consecutive requirements become one table,
+with the UID in the first column and the title, statement, other fields and
+relations in the second. Links and relations to nodes in the same document
+are links in the PDF. A link to a node in another document shows the node and
+the title of its document.
+
+RST text is converted to Typst, including lists, tables, images, code blocks,
+notes and footnotes. Mermaid and PlantUML diagrams become diagram blocks that
+the image renders with Kroki. The diagram that StrictDoc draws at the top of
+each SysML document is left out of the PDF. Mermaid nodes with the ``@{ shape: ... }``
+syntax are rewritten in the older node syntax, because the company Kroki server
+rejects them. A ``.. raw:: typst`` block is copied into the
+output as is. Math is shown as LaTeX source. Other raw HTML is left out, with
+a warning. Text, HTML and Markdown fields are written as plain text.
+
+**From the web interface**
+
+With the ``TYPST_PDF`` feature, the actions menu of a document has an
+``Export to PDF (company report)`` item. The server exports the document to a
+temporary folder, runs the builder image on it and returns the PDF as a
+download. The server needs Docker, and access to the image registry and the
+Kroki server.
+
+.. code:: toml
+
+    [project]
+    features = [
+      # ...the features you already use...
+      "TYPST_PDF",
+    ]
+
+    # Optional: another image, for example a pinned version.
+    typst_pdf_builder_image = "registry.example.com/tools/typst-doc-builder:v1.0.0"
+
+    # Optional: a command instead of "docker run <image>", for example with
+    # Podman. "{dir}" is the folder of the .typ files. The command must write
+    # the PDF into that folder.
+    typst_pdf_command = ["podman", "run", "--rm", "-v", "{dir}:/work", "typst-doc-builder"]
+
+A failed build shows the end of the builder output. A build stops after five
+minutes.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
 MID: e33a21323e2b48d692ed85cc56fd06e6
 TITLE: JSON
 
@@ -4477,12 +4614,12 @@ active/inactive when the option ``features`` is not specified.
                 "TABLE_SCREEN",
                 "TRACEABILITY_SCREEN",
                 "DEEP_TRACEABILITY_SCREEN",
+                "TRACEABILITY_MATRIX_SCREEN",
 
                 # These features are disabled by default.
                 # "REQIF",
                 # "HTML2PDF",
                 # "PROJECT_STATISTICS_SCREEN",
-                # "TRACEABILITY_MATRIX_SCREEN",
                 # "REQUIREMENT_TO_SOURCE_TRACEABILITY"
             ],
         )

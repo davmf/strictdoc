@@ -29,9 +29,6 @@ def project_config():
 
 def test(project_config: ProjectConfig):
     client = TestClient(create_app(project_config=project_config))
-    response = client.get("/traceability_matrix.html")
-    assert response.status_code == 412
-
     response = client.get("/source_coverage.html")
     assert response.status_code == 412
 
@@ -45,6 +42,9 @@ def test(project_config: ProjectConfig):
     assert response.status_code == 412
 
     response = client.get("/export_html2pdf/NOT_RELEVANT")
+    assert response.status_code == 412
+
+    response = client.get("/export_typst_pdf/NOT_RELEVANT")
     assert response.status_code == 412
 
     response = client.get("/diff")

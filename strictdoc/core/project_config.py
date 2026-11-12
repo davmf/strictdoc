@@ -105,17 +105,18 @@ class ProjectFeature(str, Enum):
     TABLE_SCREEN = "TABLE_SCREEN"
     TRACEABILITY_SCREEN = "TRACEABILITY_SCREEN"
     DEEP_TRACEABILITY_SCREEN = "DEEP_TRACEABILITY_SCREEN"
+    TRACEABILITY_MATRIX_SCREEN = "TRACEABILITY_MATRIX_SCREEN"
 
     MATHJAX = "MATHJAX"
 
     # Experimental features.
     SEARCH = "SEARCH"
     HTML2PDF = "HTML2PDF"
+    TYPST_PDF = "TYPST_PDF"
     REQIF = "REQIF"
     DIFF = "DIFF"
     PROJECT_STATISTICS_SCREEN = "PROJECT_STATISTICS_SCREEN"
     TREE_MAP_SCREEN = "TREE_MAP_SCREEN"
-    TRACEABILITY_MATRIX_SCREEN = "TRACEABILITY_MATRIX_SCREEN"
     REQUIREMENT_TO_SOURCE_TRACEABILITY = "REQUIREMENT_TO_SOURCE_TRACEABILITY"
     SOURCE_FILE_LANGUAGE_PARSERS = "SOURCE_FILE_LANGUAGE_PARSERS"
 
@@ -133,6 +134,10 @@ class ProjectFeature(str, Enum):
 
 class ProjectConfigDefault:
     DEFAULT_PROJECT_TITLE = "Untitled Project"
+    DEFAULT_TYPST_PDF_BUILDER_IMAGE = (
+        "registry.example.com"
+        "/tools/typst-doc-builder:latest"
+    )
     DEFAULT_DIR_FOR_SDOC_ASSETS = "_static"
     DEFAULT_DIR_FOR_OUTPUT = "output"
     DEFAULT_DIR_FOR_SDOC_CACHE = "output/_cache"
@@ -141,6 +146,7 @@ class ProjectConfigDefault:
         ProjectFeature.TABLE_SCREEN,
         ProjectFeature.TRACEABILITY_SCREEN,
         ProjectFeature.DEEP_TRACEABILITY_SCREEN,
+        ProjectFeature.TRACEABILITY_MATRIX_SCREEN,
         ProjectFeature.SEARCH,
     ]
     DEFAULT_SERVER_HOST = "127.0.0.1"
@@ -195,6 +201,15 @@ class ProjectConfig:
         html2pdf_template: Optional[str] = None,
         html2pdf_forced_page_break_nodes: Optional[List[str]] = None,
         html2pdf_disable_ssl_check: bool = False,
+        # The TYPST_PDF feature compiles the Typst export of a document with
+        # this image of the company typst-doc-builder.
+        typst_pdf_builder_image: str = (
+            ProjectConfigDefault.DEFAULT_TYPST_PDF_BUILDER_IMAGE
+        ),
+        # A command that replaces "docker run <image>": an argv in which
+        # "{dir}" is the folder of the exported .typ files. It must write the
+        # PDF into that folder.
+        typst_pdf_command: Optional[List[str]] = None,
         bundle_document_uid: Optional[str] = None,
         bundle_document_version: Optional[
             str
@@ -441,6 +456,23 @@ class ProjectConfig:
 
         self.html2pdf_template: Optional[str] = html2pdf_template
 
+        assert isinstance(typst_pdf_builder_image, str), (
+            "config: typst_pdf_builder_image: "
+            f"must be a string: {typst_pdf_builder_image}."
+        )
+        self.typst_pdf_builder_image: str = typst_pdf_builder_image
+        if typst_pdf_command is not None:
+            assert isinstance(typst_pdf_command, list) and all(
+                isinstance(item_, str) for item_ in typst_pdf_command
+            ), (
+                "config: typst_pdf_command: "
+                f"must be a list of strings: {typst_pdf_command}."
+            )
+            assert len(typst_pdf_command) > 0, (
+                "config: typst_pdf_command: must not be empty."
+            )
+        self.typst_pdf_command: Optional[List[str]] = typst_pdf_command
+
         if html2pdf_forced_page_break_nodes is not None:
             assert isinstance(html2pdf_forced_page_break_nodes, list)
             assert len(html2pdf_forced_page_break_nodes) <= 10
@@ -636,6 +668,9 @@ class ProjectConfig:
         from strictdoc.backend.spdx.spdx_format import (  # noqa: PLC0415
             SPDXFormat,
         )
+        from strictdoc.backend.typst.typst_format import (  # noqa: PLC0415
+            TypstFormat,
+        )
         from strictdoc.export.html.html_format import (  # noqa: PLC0415
             HTMLFormat,
         )
@@ -650,6 +685,7 @@ class ProjectConfig:
             HTMLFormat(),
             HTML2PDFFormat(),
             RSTFormat(),
+            TypstFormat(),
             ExcelFormat(),
             ReqIFFormat(),
             SDocFormat(),
@@ -1107,6 +1143,9 @@ class ProjectConfig:
     def is_activated_html2pdf(self) -> bool:
         return ProjectFeature.HTML2PDF in self.project_features
 
+    def is_activated_typst_pdf(self) -> bool:
+        return ProjectFeature.TYPST_PDF in self.project_features
+
     def is_activated_diff(self) -> bool:
         return ProjectFeature.DIFF in self.project_features
 
@@ -1460,6 +1499,10 @@ class ProjectConfigLoader:
         chromedriver: Optional[str] = None
         chrome_binary: Optional[str] = None
         html2pdf_disable_ssl_check: bool = False
+        typst_pdf_builder_image: str = (
+            ProjectConfigDefault.DEFAULT_TYPST_PDF_BUILDER_IMAGE
+        )
+        typst_pdf_command: Optional[List[str]] = None
 
         section_behavior: str = ProjectConfigDefault.DEFAULT_SECTION_BEHAVIOR
         statistics_generator: Optional[str] = None
@@ -1543,6 +1586,13 @@ class ProjectConfigLoader:
             chromedriver = project_content.get("chromedriver", chromedriver)
 
             chrome_binary = project_content.get("chrome_binary", chrome_binary)
+
+            typst_pdf_builder_image = project_content.get(
+                "typst_pdf_builder_image", typst_pdf_builder_image
+            )
+            typst_pdf_command = project_content.get(
+                "typst_pdf_command", typst_pdf_command
+            )
 
             html2pdf_disable_ssl_check = project_content.get(
                 "html2pdf_disable_ssl_check", html2pdf_disable_ssl_check
@@ -1631,6 +1681,8 @@ class ProjectConfigLoader:
             chromedriver=chromedriver,
             chrome_binary=chrome_binary,
             html2pdf_disable_ssl_check=html2pdf_disable_ssl_check,
+            typst_pdf_builder_image=typst_pdf_builder_image,
+            typst_pdf_command=typst_pdf_command,
             section_behavior=section_behavior,
             statistics_generator=statistics_generator,
             document_line_width=document_line_width,

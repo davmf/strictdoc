@@ -19,6 +19,7 @@ EXPORT_FORMATS = [
     "html2pdf",
     "markdown",
     "rst",
+    "typst",
     "json",
     "excel",
     "reqif-sdoc",

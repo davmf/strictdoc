@@ -1,0 +1,14 @@
+[DOCUMENT]
+TITLE: Software Requirements
+UID: 298_1002
+VERSION: 03
+
+[REQUIREMENT]
+UID: SW-1
+TITLE: Display driver
+STATEMENT: >>>
+The software shall drive the display of [LINK: SYS-1].
+<<<
+RELATIONS:
+- TYPE: Parent
+  VALUE: SYS-1

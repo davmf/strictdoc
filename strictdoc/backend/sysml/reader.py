@@ -163,7 +163,7 @@ DESIGN_TAGS: Dict[Tuple[str, bool], str] = {
 
 # Part of the pickle cache key. Bump it when the reader output changes, so
 # that cached documents built by an older reader are not reused.
-SYSML_CACHE_KIND = "sysml-reader-14"
+SYSML_CACHE_KIND = "sysml-reader-15"
 
 # Specialisation operators that name a type of the element. Redefinition
 # (`:>>`) and subsetting name features, not types.

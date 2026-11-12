@@ -234,7 +234,7 @@ async function addItemDiagrams() {
         }
         button.setAttribute("aria-pressed", "true");
         const placeholder = newPlaceholder(
-          `view=requirements focus=${uid} depth=1 ${NODE_LINKS}`,
+          `view=requirements focus=${uid} depth=1 orientation=horizontal ${NODE_LINKS}`,
           "sysml-item-traces"
         );
         container.appendChild(placeholder);

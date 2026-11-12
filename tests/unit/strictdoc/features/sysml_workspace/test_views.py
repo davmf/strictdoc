@@ -178,12 +178,12 @@ def test_05_save_as_view_starts_from_the_diagram_of_the_entry(cache):
     requirement = initial_view_fields(workspace.get("SYS-001"))
     assert (requirement.exposes, requirement.options) == (
         ["'SYS-001'"],
-        "depth=1",
+        "depth=1 orientation=horizontal",
     )
     part_def = initial_view_fields(workspace.get("BEH-003"))
     assert (part_def.exposes, part_def.options) == (
         [],
-        "view=requirements focus=BEH-003 depth=1",
+        "view=requirements focus=BEH-003 depth=1 orientation=horizontal",
     )
     tracker = initial_view_fields(workspace.get("TRK-SYS"))
     assert tracker.exposes == ["'TRK-SYS'::**"]

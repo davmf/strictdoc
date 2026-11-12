@@ -99,7 +99,7 @@ def test_02_an_item_shows_its_fields_relations_and_diagram(client):
     assert 'data-testid="sysml-workspace-entry-title">Boil time<' in html
     assert "The kettle shall boil 1 litre in at most 180 s." in html
     assert (
-        'data-sysml-options="view=requirements focus=SYS-001 depth=1 '
+        'data-sysml-options="view=requirements focus=SYS-001 depth=1 orientation=horizontal '
         'links=/workspace?item={id}"'
     ) in html
     assert 'href="/UID/SYS-001"' in html
@@ -138,7 +138,7 @@ def test_03_a_typing_links_to_the_item_of_its_definition(client):
         (
             "SYS-F-HEATING",
             (
-                "view=requirements root=SYS-F-HEATING depth=1 text=false "
+                "view=requirements root=SYS-F-HEATING depth=1 orientation=horizontal text=false "
                 "links=/workspace?item={id}"
             ),
         ),
@@ -291,6 +291,9 @@ def test_10_a_bad_request_shows_the_form_again(
     assert response.status_code == 422
     assert 'data-testid="sysml-workspace-error"' in response.text
     assert message in response.text
+    # The page is shown at the POST address: its relative links resolve
+    # from the server root.
+    assert '<base href="/"/>' in response.text
     files_after = sorted(
         os.path.join(directory_, name_)
         for directory_, _, names_ in os.walk(project)

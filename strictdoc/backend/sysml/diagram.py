@@ -8,8 +8,9 @@ SysML files of the project:
 
 - a requirements document: the requirements of its package or tracker and
   what lies one relation away from them, without their text (the nodes
-  below show it), each box a link to its node
-  (`view=requirements root=<package> depth=1 text=false links=/?a={id}`);
+  below show it), left to right, each box a link to its node
+  (`view=requirements root=<package> depth=1 orientation=horizontal
+  text=false links=/?a={id}`);
 - a design document: the definitions of its package or tracker
   (`view=definitions root=<package>`).
 
@@ -44,7 +45,7 @@ def diagram_options(root_name: str, is_design: bool) -> str:
     if is_design:
         return f"view=definitions root={quoted_root}"
     return (
-        f"view=requirements root={quoted_root} depth=1 text=false "
+        f"view=requirements root={quoted_root} depth=1 orientation=horizontal text=false "
         f"links={NODE_LINK_PATTERN}"
     )
 

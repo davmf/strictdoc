@@ -196,7 +196,7 @@ class WorkspaceViewObject:
                 return f"diagram={entry.entry_id} {links}"
             if entry.profile_type is not None:
                 return f"root={entry.entry_id}"
-            return f"view=requirements focus={entry.entry_id} depth=1 {links}"
+            return f"view=requirements focus={entry.entry_id} depth=1 orientation=horizontal {links}"
         if entry.entry_type in (ENTRY_TRACKER, ENTRY_FOLDER):
             items = entry.items()
             tracker_entry = entry.tracker

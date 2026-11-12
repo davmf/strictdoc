@@ -201,7 +201,9 @@ def initial_view_fields(entry: WorkspaceEntry) -> Optional[ViewFields]:
         return ViewFields(
             title=f"{entry.title} overview",
             exposes=[f"{quote_name(entry.entry_id)}::**"],
-            options="view=definitions" if is_design else "depth=1 text=false",
+            options="view=definitions"
+            if is_design
+            else "depth=1 orientation=horizontal text=false",
         )
     if entry.entry_type != ENTRY_ITEM or entry.icon == "view":
         return None
@@ -216,13 +218,13 @@ def initial_view_fields(entry: WorkspaceEntry) -> Optional[ViewFields]:
         return ViewFields(
             title=f"{entry.title} traces",
             exposes=[quote_name(entry.entry_id)],
-            options="depth=1",
+            options="depth=1 orientation=horizontal",
         )
     # A design element that no profile draws: its trace diagram. An expose
     # would make it the root of a profile diagram, so the options say it.
     return ViewFields(
         title=f"{entry.title} traces",
-        options=f"view=requirements focus={entry.entry_id} depth=1",
+        options=f"view=requirements focus={entry.entry_id} depth=1 orientation=horizontal",
     )
 
 

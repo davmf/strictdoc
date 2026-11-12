@@ -4,7 +4,7 @@ from strictdoc.backend.sysml.reader import SysMLReader
 
 def test_01_requirements_documents_draw_their_traces():
     assert diagram_options("TRK-SYS", is_design=False) == (
-        "view=requirements root=TRK-SYS depth=1 text=false links=/?a={id}"
+        "view=requirements root=TRK-SYS depth=1 orientation=horizontal text=false links=/?a={id}"
     )
 
 

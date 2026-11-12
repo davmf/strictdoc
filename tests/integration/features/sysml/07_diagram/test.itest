@@ -13,7 +13,7 @@ CHECK: Export completed.
 
 RUN: %cat %T/html/%THIS_TEST_FOLDER/requirements.html | filecheck %s --dump-input=fail --check-prefix CHECK-REQ
 CHECK-REQ-NOT: <pre class="mermaid">
-CHECK-REQ: <div class="sysml-diagram" data-sysml-document="true" data-sysml-options="view=requirements root=&quot;Diagram requirements&quot; depth=1 text=false links=/?a={id}"></div>
+CHECK-REQ: <div class="sysml-diagram" data-sysml-document="true" data-sysml-options="view=requirements root=&quot;Diagram requirements&quot; depth=1 orientation=horizontal text=false links=/?a={id}"></div>
 CHECK-REQ: <script type="module" src="/_static/plantuml/sysml/sysml-diagrams.js"></script>
 CHECK-REQ: Requirements text below the diagram.
 

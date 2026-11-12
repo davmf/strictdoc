@@ -74,7 +74,7 @@ def test_02_document_has_the_diagram_placeholder(client):
     response = client.get(f"/{INPUT_FOLDER}/TRK-SYS/TRK-SYS.html")
     assert response.status_code == 200
     assert (
-        'data-sysml-options="view=requirements root=TRK-SYS depth=1 '
+        'data-sysml-options="view=requirements root=TRK-SYS depth=1 orientation=horizontal '
         'text=false links=/?a={id}"' in response.text
     )
     assert (

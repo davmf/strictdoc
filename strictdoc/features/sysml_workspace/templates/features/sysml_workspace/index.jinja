@@ -1,6 +1,14 @@
 {% extends "base.jinja.html" %}
 {% set template_type = "Workspace" %}
 
+{#- A refused form is shown again at its POST address
+    (/actions/sysml/workspace/...): the relative links of the shared layout
+    (_static/..., index.html) resolve from the server root. -#}
+{% block head %}
+  <base href="/"/>
+  {{ super() }}
+{% endblock head %}
+
 {% block head_css %}
   {{ super() }}
   <link rel="stylesheet" href="{{ view_object.render_static_url('plantuml/sysml/workspace.css') }}"/>

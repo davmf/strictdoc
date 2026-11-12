@@ -1,0 +1,48 @@
+<section class="sysml-ws-section sysml-ws-edit" data-testid="sysml-workspace-view-editor">
+  <h2>Edit view</h2>
+  <form
+    class="sysml-ws-view-form"
+    method="post"
+    action="/actions/sysml/workspace/save_view"
+    data-item="{{ entry.entry_id }}"
+    data-testid="sysml-workspace-view-form"
+  >
+    <input type="hidden" name="item" value="{{ entry.entry_id }}"/>
+    <label>
+      <span>Title</span>
+      <input type="text" name="title" required value="{{ view_fields.title }}" data-testid="sysml-workspace-view-title"/>
+    </label>
+    <label>
+      <span>Description</span>
+      <textarea name="description" rows="2">{{ view_fields.description }}</textarea>
+    </label>
+    <label>
+      <span>Exposes</span>
+      <textarea name="exposes" rows="3" spellcheck="false" data-testid="sysml-workspace-view-exposes"
+        placeholder="One per line: 'TRK-SYS'::**  'SYS-001'  'BEH-001'::top::heating">{{ view_fields.exposes | join("\n") }}</textarea>
+    </label>
+    <div class="sysml-ws-view-add">
+      <input type="text" list="sysml-ws-expose-suggestions" aria-label="Element to expose" placeholder="Add an element to expose" data-testid="sysml-workspace-view-add-expose"/>
+      <button type="button" class="sysml-ws-button" data-action="add-expose">Add</button>
+      <datalist id="sysml-ws-expose-suggestions">
+        {%- for suggestion in view_object.expose_suggestions() %}
+        <option value="{{ suggestion }}"></option>
+        {%- endfor %}
+      </datalist>
+    </div>
+    <label>
+      <span>Options</span>
+      <input type="text" name="options" spellcheck="false" value="{{ view_fields.options }}" data-testid="sysml-workspace-view-options"
+        placeholder="transitions=primary depth=2 text=false packages=true layout=default"/>
+    </label>
+    <label>
+      <span>PlantUML lines</span>
+      <textarea name="plantuml" rows="3" spellcheck="false" data-testid="sysml-workspace-view-plantuml"
+        placeholder="note right of ramp : reviewed">{{ view_fields.plantuml }}</textarea>
+    </label>
+    <div class="sysml-ws-view-actions">
+      <button type="submit" class="sysml-ws-button" data-testid="sysml-workspace-view-save">Save view</button>
+      <span class="sysml-ws-preview-state" role="status" data-testid="sysml-workspace-preview-state"></span>
+    </div>
+  </form>
+</section>

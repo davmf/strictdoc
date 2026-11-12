@@ -6084,6 +6084,61 @@ next commit, like the edits of the document screen.
 
 [[/SECTION]]
 
+[[SECTION]]
+MID: 59b50635e1034df09f8dc19336e83532
+UID: SECTION-UG-SysML-saved-views
+TITLE: Saved views
+
+[TEXT]
+MID: e4214eb6073246509227ec9fbc713cc8
+STATEMENT: >>>
+A saved view is a ``view`` item: a diagram of other items, kept as a file
+like any item. One state machine can have several views, for example one
+per composite state, or one with the primary transitions only.
+
+.. code-block:: text
+
+    package 'BEH-006' {
+        private import 'TRK-BEH'::*;
+
+        view <'BEH-006'> 'Heating only' {
+            @StrictDocWorkspace::DiagramView {
+                options = "transitions=primary";
+                plantuml = "note right of ramp : reviewed";
+            }
+            expose 'BEH-001'::top::heating::**;
+        }
+    }
+
+What a view draws:
+
+- An ``expose`` of a tracker or a folder (``'TRK-SYS'::**``) draws its
+  requirements and their traces.
+- An ``expose`` of a requirement or a test case (``'SYS-001'``) draws its
+  traces.
+- An ``expose`` of a state machine or another profile item (``'BEH-001'``)
+  draws its profile diagram. A path inside it (``'BEH-001'::top::heating``)
+  draws one state and what it holds.
+- ``options`` holds more options of PlantUML's ``!include_sysml``, such as
+  ``transitions=primary``, ``depth=2`` or ``text=false``.
+- ``plantuml`` holds PlantUML lines added after the diagram: notes, styles.
+
+On the workspace screen:
+
+- ``Save as view`` saves the diagram of an item, a tracker or a folder as a
+  new view, in a tracker that is not a requirements tracker. The view opens
+  in the view editor.
+- The view editor of a view item edits its title, description, exposes,
+  options and PlantUML lines. The ``Add`` field suggests what a view can
+  expose, including the states of each state machine. The diagram shows a
+  preview of the fields as they are typed, before they are saved. An error
+  of the diagram, such as an unknown state, shows under the form.
+- The relations of an item list the views that show it, with the role
+  ``Shows``.
+<<<
+
+[[/SECTION]]
+
 [[/SECTION]]
 
 [[SECTION]]

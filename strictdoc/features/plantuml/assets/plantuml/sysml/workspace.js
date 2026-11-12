@@ -14,12 +14,20 @@
  *   it answers the form, and reloading the page would cancel the redirect
  *   to the new entry.
  *
+ * - The view editor previews the view as it is typed: the server writes the
+ *   view file for the fields (/workspace/view_source, nothing is saved), and
+ *   the diagram of the view is drawn with that text (drawWithFile()).
+ *
  * Without the script, every link loads the whole screen.
  */
+
+import { drawWithFile } from "./sysml-diagrams.js";
 
 const WORKSPACE_PATH = "/workspace";
 const PANES_URL = "/workspace/panes";
 const EXPANDED_KEY = "strictdoc.sysmlWorkspace.expanded";
+const VIEW_SOURCE_URL = "/workspace/view_source";
+const PREVIEW_DELAY_MS = 500;
 
 function tree() {
   return document.querySelector(".sysml-ws-tree");
@@ -134,6 +142,11 @@ function onClick(event) {
       event.ctrlKey || event.shiftKey || event.altKey) {
     return;
   }
+  const addExpose = event.target.closest('[data-action="add-expose"]');
+  if (addExpose !== null) {
+    addExposeLine(addExpose.closest("form"));
+    return;
+  }
   const toggle = event.target.closest(".sysml-ws-toggle");
   if (toggle !== null) {
     const entry = toggle.closest(".sysml-ws-tree-entry");
@@ -185,6 +198,85 @@ if (selected !== null) {
 document.addEventListener("click", onClick);
 document.getElementById("sysml-ws-filter").addEventListener("input", (event) => {
   filter(event.target.value);
+});
+// The view editor.
+
+let previewTimer = null;
+let previewRun = 0;
+
+function addExposeLine(form) {
+  const input = form.querySelector('[data-testid="sysml-workspace-view-add-expose"]');
+  const value = input.value.trim();
+  if (value === "") {
+    return;
+  }
+  const exposes = form.elements.exposes;
+  exposes.value = exposes.value.replace(/\s*$/, "");
+  exposes.value += (exposes.value === "" ? "" : "\n") + value;
+  input.value = "";
+  schedulePreview(form);
+}
+
+function schedulePreview(form) {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => preview(form), PREVIEW_DELAY_MS);
+}
+
+async function preview(form) {
+  const run = ++previewRun;
+  const state = form.querySelector(".sysml-ws-preview-state");
+  const placeholder = document.querySelector(
+    '#sysml-ws-main [data-testid="sysml-workspace-diagram"]'
+  );
+  if (placeholder === null) {
+    return;
+  }
+  state.textContent = "Drawing the preview...";
+  state.dataset.state = "busy";
+  try {
+    const response = await fetch(VIEW_SOURCE_URL, {
+      method: "POST",
+      body: new FormData(form),
+      cache: "no-store",
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || `HTTP ${response.status}`);
+    }
+    const svg = await drawWithFile(
+      placeholder.dataset.sysmlOptions,
+      result.name,
+      result.text
+    );
+    if (run !== previewRun) {
+      return;
+    }
+    placeholder.innerHTML = svg;
+    placeholder.dataset.sysmlState = "drawn";
+    placeholder.dataset.sysmlPreview = "true";
+    state.textContent = "Preview: not saved yet.";
+    state.dataset.state = "preview";
+  } catch (error) {
+    if (run !== previewRun) {
+      return;
+    }
+    state.textContent = error && error.message ? error.message : String(error);
+    state.dataset.state = "error";
+  }
+}
+
+document.addEventListener("input", (event) => {
+  const form = event.target.closest(".sysml-ws-view-form");
+  if (form !== null && event.target.dataset.testid !== "sysml-workspace-view-add-expose") {
+    schedulePreview(form);
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" &&
+      event.target.dataset.testid === "sysml-workspace-view-add-expose") {
+    event.preventDefault();
+    addExposeLine(event.target.closest("form"));
+  }
 });
 document.addEventListener("submit", () => {
   if (window.ws instanceof WebSocket) {

@@ -243,6 +243,7 @@ def build_workspace(
         _index(tracker_entry, entries)
 
     _link_relations(entries)
+    _link_views(entries)
     return Workspace(
         root=root,
         entries=entries,
@@ -432,6 +433,36 @@ def _link_relations(entries: Dict[str, WorkspaceEntry]) -> None:
                 seen.add(key)
                 source.outgoing.append(WorkspaceRelation(role, target))
                 target.incoming.append(WorkspaceRelation(role, source))
+
+
+# The first segment of an `expose` of a view: the ID of what it shows.
+_EXPOSE_PATTERN = re.compile(
+    r"^\s*expose\s+('(?:[^'\\]|\\.)*'|[A-Za-z_][\w-]*)", re.MULTILINE
+)
+# A view of a design element's traces names it in its options.
+_FOCUS_PATTERN = re.compile(r"\bfocus=([\w-]+)")
+VIEW_ROLE = "Shows"
+
+
+def _link_views(entries: Dict[str, WorkspaceEntry]) -> None:
+    """A view shows what it exposes: the role is "Shows"."""
+    for view_ in list(entries.values()):
+        if view_.icon != "view" or view_.file_path is None:
+            continue
+        with file_open_read_utf8(view_.file_path) as file_:
+            text = file_.read()
+        shown: List[str] = []
+        ids = [
+            tracker.unquote_name(match_.group(1))
+            for match_ in _EXPOSE_PATTERN.finditer(text)
+        ] + [match_.group(1) for match_ in _FOCUS_PATTERN.finditer(text)]
+        for id_ in ids:
+            target = entries.get(id_)
+            if target is None or target is view_ or target.entry_id in shown:
+                continue
+            shown.append(target.entry_id)
+            view_.outgoing.append(WorkspaceRelation(VIEW_ROLE, target))
+            target.incoming.append(WorkspaceRelation(VIEW_ROLE, view_))
 
 
 class WorkspaceCache:

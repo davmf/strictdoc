@@ -15,6 +15,9 @@
  * A diagram fits the width of the page. A click on it, outside its links,
  * shows it at its full size, with a scroll bar.
  *
+ * drawWithFile() draws a diagram with the unsaved text of one file, for
+ * previews.
+ *
  * The SysML files come from /sysml/model_files, once per page and
  * again after a save. Placeholders are drawn when they scroll into view,
  * one at a time. A MutationObserver finds the placeholders of nodes that
@@ -104,22 +107,39 @@ function escapeHtml(text) {
     .replaceAll(">", "&gt;");
 }
 
-async function draw(placeholder) {
+async function drawFiles(options, names, texts) {
   const plantuml = await engine();
-  const files = await model();
   const source = await new Promise((resolve, reject) => {
-    plantuml.sysmlToPlantUml(
-      files.names,
-      files.texts,
-      optionWords(placeholder.dataset.sysmlOptions),
-      resolve,
-      reject
-    );
+    plantuml.sysmlToPlantUml(names, texts, optionWords(options), resolve, reject);
   });
   const lines = ["@startuml", ...source.split("\n"), "@enduml"];
   return new Promise((resolve, reject) => {
     plantuml.renderToString(lines, resolve, reject);
   });
+}
+
+async function draw(placeholder) {
+  const files = await model();
+  return drawFiles(placeholder.dataset.sysmlOptions, files.names, files.texts);
+}
+
+/*
+ * The SVG of a diagram drawn as if the file `name` held `text`: the preview
+ * of an edit that is not saved yet (the view editor of the workspace).
+ * Rejects with the error of the engine.
+ */
+export async function drawWithFile(options, name, text) {
+  const files = await model();
+  const names = [...files.names];
+  const texts = [...files.texts];
+  const index = names.indexOf(name);
+  if (index === -1) {
+    names.push(name);
+    texts.push(text);
+  } else {
+    texts[index] = text;
+  }
+  return drawFiles(options, names, texts);
 }
 
 function drawLater(placeholder) {

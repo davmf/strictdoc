@@ -88,6 +88,48 @@ class Screen_SysMLWorkspace(Screen):  # pylint: disable=invalid-name
         self.test_case.type(f"{form}//input[@name='title']", title, by=By.XPATH)
         self.test_case.click_xpath(f"{form}//button[@type='submit']")
 
+    def do_save_as_view(self) -> None:
+        self.test_case.click_xpath(
+            "//*[@data-testid='sysml-workspace-save-as-view']/summary"
+        )
+        self.test_case.click_xpath(
+            "//*[@data-testid='sysml-workspace-save-as-view-form']"
+            "//button[@type='submit']"
+        )
+
+    def assert_view_editor(self) -> None:
+        self.test_case.assert_element(
+            "//*[@data-testid='sysml-workspace-view-editor']", by=By.XPATH
+        )
+
+    def do_fill_view_field(self, field: str, text: str) -> None:
+        self.test_case.type(
+            f"//*[@data-testid='sysml-workspace-view-{field}']",
+            text,
+            by=By.XPATH,
+        )
+
+    def do_add_expose(self, text: str) -> None:
+        self.test_case.type(
+            "//*[@data-testid='sysml-workspace-view-add-expose']",
+            text,
+            by=By.XPATH,
+        )
+        self.test_case.click_xpath("//button[@data-action='add-expose']")
+
+    def assert_preview(self, state: str) -> None:
+        self.test_case.assert_element(
+            "//*[@data-testid='sysml-workspace-preview-state']"
+            f"[@data-state='{state}']",
+            by=By.XPATH,
+            timeout=DIAGRAM_TIMEOUT_SECONDS,
+        )
+
+    def do_save_view(self) -> None:
+        self.test_case.click_xpath(
+            "//*[@data-testid='sysml-workspace-view-save']"
+        )
+
     @staticmethod
     def _tree_link(entry_id: str) -> str:
         return (

@@ -8,6 +8,11 @@ Server endpoints of the SysML workspace screen.
 - POST /actions/sysml/workspace/new_item: create an item from a template.
 - POST /actions/sysml/workspace/new_folder: create a folder.
 - POST /actions/sysml/workspace/new_tracker: create a tracker.
+- POST /actions/sysml/workspace/new_view: save the diagram of an entry as a
+  new view item.
+- POST /actions/sysml/workspace/save_view: save the fields of a view.
+- POST /workspace/view_source: the text of a view file for the fields of the
+  view editor, as JSON, for the preview. It writes nothing.
 
 The create actions are under /actions/, so proxy auth asks for the editor
 role. They write the files while holding the global write lock, then
@@ -36,6 +41,13 @@ from strictdoc.features.sysml_workspace.templates import (
 from strictdoc.features.sysml_workspace.view_object import (
     WORKSPACE_URL,
     WorkspaceViewObject,
+)
+from strictdoc.features.sysml_workspace.views import (
+    checked_view_fields,
+    create_view,
+    save_view,
+    view_entry,
+    view_text,
 )
 from strictdoc.features.sysml_workspace.workspace import (
     Workspace,
@@ -225,6 +237,97 @@ def create_sysml_workspace_router(
             None,
             {"form": "tracker", "title": title, "kind": kind, "prefix": prefix},
             lambda workspace_: create_tracker(workspace_, title, kind, prefix),
+        )
+
+    @router.post(
+        "/actions/sysml/workspace/new_view",
+        dependencies=[Depends(require_editor)],
+    )
+    def post_new_view(
+        request: Request,
+        source: str = Form(...),
+        tracker: str = Form(""),
+        title: str = Form(""),
+    ) -> Response:
+        return create(
+            request,
+            source,
+            {"form": "new_view", "title": title, "tracker": tracker},
+            lambda workspace_: create_view(workspace_, source, tracker, title),
+        )
+
+    @router.post(
+        "/actions/sysml/workspace/save_view",
+        dependencies=[Depends(require_editor)],
+    )
+    def post_save_view(
+        request: Request,
+        item: str = Form(...),
+        title: str = Form(""),
+        description: str = Form(""),
+        exposes: str = Form(""),
+        options: str = Form(""),
+        plantuml: str = Form(""),
+    ) -> Response:
+        def save(workspace_: Workspace) -> str:
+            view = view_entry(workspace_, item)
+            assert view.tracker is not None
+            fields = checked_view_fields(
+                workspace_,
+                view.tracker,
+                title,
+                description,
+                exposes,
+                options,
+                plantuml,
+            )
+            return save_view(workspace_, item, fields)
+
+        return create(
+            request,
+            item,
+            {
+                "form": "view",
+                "title": title,
+                "description": description,
+                "exposes": exposes,
+                "options": options,
+                "plantuml": plantuml,
+            },
+            save,
+        )
+
+    @router.post("/workspace/view_source", response_class=JSONResponse)
+    def post_view_source(
+        item: str = Form(...),
+        title: str = Form(""),
+        description: str = Form(""),
+        exposes: str = Form(""),
+        options: str = Form(""),
+        plantuml: str = Form(""),
+    ) -> Response:
+        workspace = read_workspace()
+        try:
+            view = view_entry(workspace, item)
+            assert view.tracker is not None
+            fields = checked_view_fields(
+                workspace,
+                view.tracker,
+                title,
+                description,
+                exposes,
+                options,
+                plantuml,
+            )
+        except WorkspaceEditError as edit_error:
+            return JSONResponse(
+                {"error": str(edit_error)},
+                status_code=HTTP_STATUS_UNPROCESSABLE_ENTITY,
+                headers=NO_STORE,
+            )
+        return JSONResponse(
+            {"name": view.relative_path, "text": view_text(item, fields)},
+            headers=NO_STORE,
         )
 
     return router

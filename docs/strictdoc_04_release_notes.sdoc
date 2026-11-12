@@ -114,6 +114,11 @@ selected entry with its diagram in the middle, and its relations and Git
 history on the right. It creates trackers, folders and items, with templates
 for requirements, test cases, parts, state machines, sequences and timing
 diagrams.
+
+11\) The workspace screen saves the diagram of an item, a tracker or a
+folder as a ``view`` item, and edits views with a live preview: the exposed
+elements (a state of a state machine, for example), the options and extra
+PlantUML lines. The relations of an item list its views.
 <<<
 
 [[/SECTION]]

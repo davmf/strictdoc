@@ -28,6 +28,14 @@ from strictdoc.features.sysml_workspace.templates import (
     ItemTemplate,
     templates_for,
 )
+from strictdoc.features.sysml_workspace.views import (
+    ViewFields,
+    default_view_tracker,
+    expose_suggestions,
+    initial_view_fields,
+    read_view,
+    view_trackers,
+)
 from strictdoc.features.sysml_workspace.workspace import (
     ENTRY_FOLDER,
     ENTRY_ITEM,
@@ -244,6 +252,39 @@ class WorkspaceViewObject:
 
     def item_templates(self, entry: WorkspaceEntry) -> List[ItemTemplate]:
         return templates_for(entry)
+
+    def is_view(self, entry: WorkspaceEntry) -> bool:
+        return entry.entry_type == ENTRY_ITEM and entry.icon == "view"
+
+    def view_fields(self, entry: WorkspaceEntry) -> Optional[ViewFields]:
+        """The fields of the view editor: as typed after an error, else read."""
+        if not self.is_view(entry):
+            return None
+        if self.form_values.get("form") == "view":
+            return ViewFields(
+                title=self.form_values.get("title", ""),
+                description=self.form_values.get("description", ""),
+                exposes=self.form_values.get("exposes", "").splitlines(),
+                options=self.form_values.get("options", ""),
+                plantuml=self.form_values.get("plantuml", ""),
+            )
+        return read_view(entry)
+
+    def new_view_fields(self, entry: WorkspaceEntry) -> Optional[ViewFields]:
+        """What "Save as view" saves for the entry, None without a diagram."""
+        return initial_view_fields(entry)
+
+    def view_trackers(self) -> List[WorkspaceEntry]:
+        return view_trackers(self.workspace)
+
+    def default_view_tracker_id(self, entry: WorkspaceEntry) -> str:
+        if self.form_values.get("form") == "new_view":
+            return self.form_values.get("tracker", "")
+        default = default_view_tracker(self.workspace, entry)
+        return default.entry_id if default is not None else ""
+
+    def expose_suggestions(self) -> List[str]:
+        return expose_suggestions(self.workspace)
 
     def form_value(self, name: str, default: str = "") -> str:
         return self.form_values.get(name, default)

@@ -48,6 +48,16 @@
   </section>
   {%- endif %}
 
+  {%- set view_fields = view_object.view_fields(entry) -%}
+  {%- if view_fields is not none %}
+    {% include "features/sysml_workspace/view_editor.jinja" %}
+  {%- else %}
+    {%- set new_view_fields = view_object.new_view_fields(entry) -%}
+    {%- if new_view_fields is not none %}
+      {% include "features/sysml_workspace/save_as_view.jinja" %}
+    {%- endif %}
+  {%- endif %}
+
   {%- set member_fields = view_object.fields(entry, members=True) -%}
   {%- if member_fields %}
   <details class="sysml-ws-section sysml-ws-members">

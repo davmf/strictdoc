@@ -53,7 +53,7 @@ class ItemTemplate:
 
 def _requirement(item_id: str, title: str) -> List[str]:
     return [
-        f"requirement <{_quote(item_id)}> {_quote(title)} {{",
+        f"requirement <{quote_name(item_id)}> {quote_name(title)} {{",
         "}",
     ]
 
@@ -68,7 +68,7 @@ def _empty(keyword: str) -> Callable[[str, str], List[str]]:
 def _state_machine(_item_id: str, title: str) -> List[str]:
     return [
         f"part {_name(title)} : StateMachine {{",
-        f"{INDENT}:>> name = {_string(title)};",
+        f"{INDENT}:>> name = {sysml_string(title)};",
         "",
         f"{INDENT}part :>> top : Region {{",
         (
@@ -91,7 +91,7 @@ def _sequence(_item_id: str, title: str) -> List[str]:
     name = _name(title)
     return [
         f"part {name} : Interaction {{",
-        f"{INDENT}:>> name = {_string(title)};",
+        f"{INDENT}:>> name = {sysml_string(title)};",
         "",
         f"{INDENT}part :>> participantClasses {{",
         (
@@ -134,7 +134,7 @@ def _sequence(_item_id: str, title: str) -> List[str]:
 def _timing(_item_id: str, title: str) -> List[str]:
     return [
         f"part {_name(title)} : TimingDiagram {{",
-        f"{INDENT}:>> name = {_string(title)};",
+        f"{INDENT}:>> name = {sysml_string(title)};",
         f"{INDENT}:>> timeUnit = TimeUnit::us;",
         "",
         f"{INDENT}part :>> lifelines {{",
@@ -239,15 +239,15 @@ def create_item(
             f"A {parent.kind_label.lower()} of this tracker cannot hold "
             f"an item of the kind '{template_key}'."
         )
-    title = _checked_title(title)
+    title = checked_title(title)
     tracker_entry = parent.tracker
     assert tracker_entry is not None and tracker_entry.file_path is not None
-    item_id = _new_item_id(workspace, tracker_entry)
+    item_id = new_item_id(workspace, tracker_entry)
     imports = _item_imports(tracker_entry)
     for import_ in template.imports:
         if import_ not in imports:
             imports.append(import_)
-    lines = [f"package {_quote(item_id)} {{"]
+    lines = [f"package {quote_name(item_id)} {{"]
     lines.extend(f"{INDENT}{import_}" for import_ in imports)
     lines.append("")
     lines.extend(
@@ -255,11 +255,11 @@ def create_item(
         for line_ in template.element(item_id, title)
     )
     lines.append("}")
-    _write_and_include(
-        new_path=_new_path(tracker_entry, item_id),
+    write_and_include(
+        new_path=new_path(tracker_entry, item_id),
         text="\n".join(lines) + "\n",
         parent_path=_file_path(parent),
-        include_line=f"{INDENT}public import {_quote(item_id)}::*;",
+        include_line=f"{INDENT}public import {quote_name(item_id)}::*;",
     )
     return item_id
 
@@ -267,30 +267,28 @@ def create_item(
 def create_folder(workspace: Workspace, parent_id: str, title: str) -> str:
     """Write a new folder file and include it. Returns its ID."""
     parent = _container(workspace, parent_id)
-    title = _checked_title(title)
+    title = checked_title(title)
     tracker_entry = parent.tracker
     assert tracker_entry is not None
     slug = re.sub(r"[^A-Za-z0-9]+", "-", title).strip("-").upper()
-    base_id = (
-        f"{_prefix(tracker_entry)}-F-{slug if len(slug) > 0 else 'FOLDER'}"
-    )
+    base_id = f"{tracker_prefix(tracker_entry)}-F-{slug if len(slug) > 0 else 'FOLDER'}"
     folder_id = base_id
     counter = 2
     while folder_id in workspace.entries or os.path.exists(
-        _new_path(tracker_entry, folder_id, check=False)
+        new_path(tracker_entry, folder_id, check=False)
     ):
         folder_id = f"{base_id}-{counter}"
         counter += 1
     text = (
-        f"package {_quote(folder_id)} {{\n"
-        f"{INDENT}@StrictDocWorkspace::Folder {{ title = {_string(title)}; }}\n"
+        f"package {quote_name(folder_id)} {{\n"
+        f"{INDENT}@StrictDocWorkspace::Folder {{ title = {sysml_string(title)}; }}\n"
         "}\n"
     )
-    _write_and_include(
-        new_path=_new_path(tracker_entry, folder_id),
+    write_and_include(
+        new_path=new_path(tracker_entry, folder_id),
         text=text,
         parent_path=_file_path(parent),
-        include_line=f"{INDENT}public import {_quote(folder_id)}::*;",
+        include_line=f"{INDENT}public import {quote_name(folder_id)}::*;",
     )
     return folder_id
 
@@ -308,7 +306,7 @@ def create_tracker(
             "The model has no root file (a package with "
             "@StrictDocWorkspace::Model metadata) to include the tracker."
         )
-    title = _checked_title(title)
+    title = checked_title(title)
     if kind not in TRACKER_KINDS:
         raise WorkspaceEditError(
             f"Unknown tracker kind '{kind}': expected one of "
@@ -322,7 +320,7 @@ def create_tracker(
             "letter (SYS, HW2...)."
         )
     for tracker_ in workspace.trackers():
-        if _prefix(tracker_) == prefix:
+        if tracker_prefix(tracker_) == prefix:
             raise WorkspaceEditError(
                 f"The tracker {tracker_.entry_id} already uses the prefix "
                 f"'{prefix}'."
@@ -332,18 +330,18 @@ def create_tracker(
     if tracker_id in workspace.entries or os.path.exists(directory):
         raise WorkspaceEditError(f"{directory} exists already.")
     text = (
-        f"package {_quote(tracker_id)} {{\n"
-        f"{INDENT}@StrictDocWorkspace::Tracker {{ title = {_string(title)}; "
-        f"kind = {_string(kind)}; prefix = {_string(prefix)}; }}\n"
+        f"package {quote_name(tracker_id)} {{\n"
+        f"{INDENT}@StrictDocWorkspace::Tracker {{ title = {sysml_string(title)}; "
+        f"kind = {sysml_string(kind)}; prefix = {sysml_string(prefix)}; }}\n"
         "}\n"
     )
     os.makedirs(directory)
     try:
-        _write_and_include(
+        write_and_include(
             new_path=os.path.join(directory, f"{tracker_id}.sysml"),
             text=text,
             parent_path=root.file_path,
-            include_line=f"{INDENT}public import {_quote(tracker_id)};",
+            include_line=f"{INDENT}public import {quote_name(tracker_id)};",
         )
     except Exception:
         os.rmdir(directory)
@@ -363,7 +361,7 @@ def _container(workspace: Workspace, parent_id: str) -> WorkspaceEntry:
     return parent
 
 
-def _checked_title(title: str) -> str:
+def checked_title(title: str) -> str:
     title = title.strip()
     if len(title) == 0:
         raise WorkspaceEditError("The title is empty.")
@@ -372,14 +370,14 @@ def _checked_title(title: str) -> str:
     return title
 
 
-def _prefix(tracker_entry: WorkspaceEntry) -> str:
+def tracker_prefix(tracker_entry: WorkspaceEntry) -> str:
     if tracker_entry.prefix is not None and len(tracker_entry.prefix) > 0:
         return tracker_entry.prefix
     return re.sub(r"^TRK-", "", tracker_entry.entry_id)
 
 
-def _new_item_id(workspace: Workspace, tracker_entry: WorkspaceEntry) -> str:
-    prefix = _prefix(tracker_entry)
+def new_item_id(workspace: Workspace, tracker_entry: WorkspaceEntry) -> str:
+    prefix = tracker_prefix(tracker_entry)
     pattern = re.compile(re.escape(prefix) + r"-(\d+)$")
     highest = 0
     for id_ in workspace.entries:
@@ -390,7 +388,7 @@ def _new_item_id(workspace: Workspace, tracker_entry: WorkspaceEntry) -> str:
     while True:
         item_id = f"{prefix}-{number:03d}"
         if item_id not in workspace.entries and not os.path.exists(
-            _new_path(tracker_entry, item_id, check=False)
+            new_path(tracker_entry, item_id, check=False)
         ):
             return item_id
         number += 1
@@ -403,10 +401,10 @@ def _item_imports(tracker_entry: WorkspaceEntry) -> List[str]:
             imports = node_data.get_imports(item_.node)
             if len(imports) > 0:
                 return list(imports)
-    return [f"private import {_quote(tracker_entry.entry_id)}::*;"]
+    return [f"private import {quote_name(tracker_entry.entry_id)}::*;"]
 
 
-def _new_path(
+def new_path(
     tracker_entry: WorkspaceEntry, file_id: str, check: bool = True
 ) -> str:
     assert tracker_entry.file_path is not None
@@ -424,7 +422,7 @@ def _file_path(entry: WorkspaceEntry) -> str:
     return entry.file_path
 
 
-def _write_and_include(
+def write_and_include(
     *, new_path: str, text: str, parent_path: str, include_line: str
 ) -> None:
     with open(new_path, "x", encoding="utf-8") as file_:
@@ -466,11 +464,11 @@ def add_include(path: str, include_line: str) -> None:
         file_.write("\n".join(lines) + "\n")
 
 
-def _quote(name: str) -> str:
+def quote_name(name: str) -> str:
     return "'" + name.replace("\\", "\\\\").replace("'", "\\'") + "'"
 
 
-def _string(text: str) -> str:
+def sysml_string(text: str) -> str:
     return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
@@ -481,4 +479,4 @@ def _name(title: str) -> str:
     """
     if _IDENTIFIER_PATTERN.match(title) is not None:
         return title
-    return _quote(title)
+    return quote_name(title)

@@ -376,3 +376,62 @@ body[data-user-role]:not([data-user-role="editor"]):not([data-user-role="admin"]
   .sysml-ws-edit {
   display: none;
 }
+
+/* View editor */
+
+.sysml-ws-view-form {
+  display: grid;
+  gap: 0.6rem;
+  max-width: 50rem;
+}
+
+.sysml-ws-view-form label {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.sysml-ws-view-form input[type="text"],
+.sysml-ws-view-form textarea {
+  padding: 0.3rem 0.5rem;
+  font-weight: normal;
+}
+
+.sysml-ws-view-form textarea[name="exposes"],
+.sysml-ws-view-form textarea[name="plantuml"],
+.sysml-ws-view-form input[name="options"] {
+  font-family: monospace;
+}
+
+.sysml-ws-view-add,
+.sysml-ws-view-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.sysml-ws-view-add input {
+  flex: 1;
+  font-family: monospace;
+}
+
+.sysml-ws-preview-state {
+  font-size: 0.85rem;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.sysml-ws-preview-state[data-state="error"] {
+  color: #b00020;
+  white-space: pre-wrap;
+}
+
+.sysml-diagram[data-sysml-preview="true"] {
+  outline: 2px dashed #c99a2e;
+  outline-offset: 4px;
+}
+
+details.sysml-ws-edit > summary {
+  cursor: pointer;
+  font-weight: 600;
+}

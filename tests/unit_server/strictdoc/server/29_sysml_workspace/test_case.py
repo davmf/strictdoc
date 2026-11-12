@@ -350,3 +350,91 @@ def test_12_with_proxy_auth_a_viewer_reads_but_does_not_create(project):
     assert not os.path.exists(
         os.path.join(project, "TRK-BEH", "BEH-F-LID.sysml")
     )
+
+
+VIEW_FORM = {
+    "item": "VIEW-001",
+    "title": "Heating, all transitions",
+    "description": "",
+    "exposes": "'BEH-001'::top::heating::**",
+    "options": "transitions=all",
+    "plantuml": "note right of ramp : checked",
+}
+
+
+def test_13_save_as_view_creates_a_view_of_the_entry(client, project):
+    html = client.get("/workspace", params={"item": "BEH-001"}).text
+    assert 'data-testid="sysml-workspace-save-as-view-form"' in html
+    response = client.post(
+        "/actions/sysml/workspace/new_view",
+        data={"source": "BEH-001", "tracker": "TRK-BEH", "title": "Whole"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/workspace?item=BEH-002"
+    assert "    expose 'BEH-001';\n" in _read(project, "TRK-BEH/BEH-002.sysml")
+    html = client.get("/workspace", params={"item": "BEH-002"}).text
+    assert 'data-testid="sysml-workspace-view-editor"' in html
+    assert 'data-sysml-options="diagram=BEH-002 ' in html
+    # The state machine lists its views.
+    side = client.get("/workspace/panes", params={"item": "BEH-001"}).json()[
+        "side"
+    ]
+    assert 'data-entry-id="BEH-002"' in side
+    assert 'data-entry-id="VIEW-001"' in side
+
+
+def test_14_the_preview_text_is_not_saved(client, project):
+    before = _read(project, "TRK-BEH/VIEW-001.sysml")
+    response = client.post("/workspace/view_source", data=VIEW_FORM)
+    assert response.status_code == 200
+    preview = response.json()
+    assert preview["name"] == "TRK-BEH/VIEW-001.sysml"
+    assert 'options = "transitions=all";' in preview["text"]
+    assert _read(project, "TRK-BEH/VIEW-001.sysml") == before
+    response = client.post(
+        "/workspace/view_source", data={**VIEW_FORM, "exposes": "x; y"}
+    )
+    assert response.status_code == 422
+    assert "is not an expose target" in response.json()["error"]
+
+
+def test_15_save_view_writes_the_view_file(client, project):
+    response = client.post(
+        "/actions/sysml/workspace/save_view",
+        data=VIEW_FORM,
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/workspace?item=VIEW-001"
+    assert _read(project, "TRK-BEH/VIEW-001.sysml") == (
+        "package 'VIEW-001' {\n"
+        "    private import 'TRK-BEH'::*;\n"
+        "\n"
+        "    view <'VIEW-001'> 'Heating, all transitions' {\n"
+        "        @StrictDocWorkspace::DiagramView {\n"
+        '            options = "transitions=all";\n'
+        '            plantuml = "note right of ramp : checked";\n'
+        "        }\n"
+        "        expose 'BEH-001'::top::heating::**;\n"
+        "    }\n"
+        "}\n"
+    )
+    html = client.get("/workspace", params={"item": "VIEW-001"}).text
+    assert (
+        'data-testid="sysml-workspace-entry-title">Heating, all transitions<'
+    ) in html
+
+
+def test_16_a_bad_view_keeps_what_was_typed(client, project):
+    before = _read(project, "TRK-BEH/VIEW-001.sysml")
+    response = client.post(
+        "/actions/sysml/workspace/save_view",
+        data={**VIEW_FORM, "description": "a */ b"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 422
+    assert "cannot contain" in response.text
+    assert ">a */ b</textarea>" in response.text
+    assert 'value="transitions=all"' in response.text
+    assert _read(project, "TRK-BEH/VIEW-001.sysml") == before

@@ -1,0 +1,21 @@
+{%- set trackers = view_object.view_trackers() -%}
+<details class="sysml-ws-section sysml-ws-edit"{% if view_object.form_value('form') == 'new_view' %} open{% endif %} data-testid="sysml-workspace-save-as-view">
+  <summary>Save as view</summary>
+  {%- if trackers %}
+  <form class="sysml-ws-form" method="post" action="/actions/sysml/workspace/new_view" data-testid="sysml-workspace-save-as-view-form">
+    <input type="hidden" name="source" value="{{ entry.entry_id }}"/>
+    <input type="text" name="title" aria-label="Title of the view"
+      value="{{ view_object.form_value('title') if view_object.form_value('form') == 'new_view' else new_view_fields.title }}"/>
+    <select name="tracker" aria-label="Tracker of the view">
+      {%- set default_tracker = view_object.default_view_tracker_id(entry) -%}
+      {%- for tracker in trackers %}
+      <option value="{{ tracker.entry_id }}"{% if tracker.entry_id == default_tracker %} selected{% endif %}>{{ tracker.title }}</option>
+      {%- endfor %}
+    </select>
+    <button type="submit" class="sysml-ws-button">Save as view</button>
+  </form>
+  <p class="sysml-ws-muted">The view starts as this diagram. Edit it to show a part of it, to keep some transitions only or to add notes.</p>
+  {%- else %}
+  <p class="sysml-ws-muted">A view is an item of a tracker that is not a requirements tracker. Create such a tracker first.</p>
+  {%- endif %}
+</details>

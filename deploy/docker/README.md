@@ -8,8 +8,10 @@ One image for the command line, CI and the web server. It contains:
 - PlantUML 1.2026.10 with Java 21 and Graphviz, so that PDFs show PlantUML
   diagrams as drawings. Diagrams are drawn inside the container, with no
   network access. In HTML, PlantUML still runs in the browser as before.
-- Optionally Google Chrome, for the `html2pdf` export (`INSTALL_CHROME=true`,
-  amd64 only).
+- Optionally Google Chrome and StrictDoc's `html2pdf` extra, for the
+  `html2pdf` export (`INSTALL_CHROME=true`, amd64 only). Without them the
+  image is smaller, and a project that activates `HTML2PDF` stops with an
+  error.
 
 ## Build
 
@@ -19,7 +21,7 @@ From the repository root:
 
 | Build argument     | Default      | Purpose                                     |
 |--------------------|--------------|---------------------------------------------|
-| `INSTALL_CHROME`   | `false`      | Adds Chrome for `html2pdf`.                 |
+| `INSTALL_CHROME`   | `false`      | Adds Chrome and the html2pdf extra.         |
 | `PLANTUML_VERSION` | `1.2026.10`  | Change together with `PLANTUML_SHA256`.     |
 | `PLANTUML_SHA256`  | (pinned)     | Checksum of the PlantUML jar.               |
 | `STRICTDOC_UID`    | `1000`       | UID of the image's `strictdoc` user.        |

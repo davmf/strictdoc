@@ -65,7 +65,7 @@ services:
       args:
         STRICTDOC_UID: ${STRICTDOC_UID:-1000}
         STRICTDOC_GID: ${STRICTDOC_GID:-1000}
-        INSTALL_CHROME: ${INSTALL_CHROME:-true}
+        INSTALL_CHROME: ${INSTALL_CHROME:-false}
     restart: unless-stopped
     # One process, one worker, no reload: the server keeps the whole project
     # model in memory and relies on in-process locks.

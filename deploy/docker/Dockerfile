@@ -15,6 +15,25 @@
 # Pinned by digest. Refresh the tag and digest together.
 FROM ghcr.io/typst/typst:0.15.1@sha256:032e292249bcd378480cc7c142cfa324b63ef8aadeb88d7e7230320c4c9c422f AS typst
 
+# A Java runtime with only the modules PlantUML uses, about a third of the
+# size of Debian's JRE. Pinned by digest. Refresh the tag and digest together.
+FROM eclipse-temurin:21-jdk@sha256:0a3f329821dcadf54b2a3033a15e2e9f007069a9db43d7f51897e6b80e726b07 AS jre
+RUN jlink \
+      --add-modules java.base,java.desktop,java.logging,java.prefs,java.scripting,java.xml,jdk.charsets,jdk.unsupported \
+      --strip-debug --no-header-files --no-man-pages --compress=zip-6 \
+      --output /opt/jre
+
+# StrictDoc in a virtual environment. Built in its own stage, so that the
+# sources and the build files stay out of the image.
+# The html2pdf extra (html2pdf4doc, Selenium, pypdf) only comes with Chrome.
+FROM python:3.12-slim-trixie AS venv
+ARG INSTALL_CHROME=false
+RUN python3 -m venv /opt/venv
+COPY pyproject.toml README.md LICENSE NOTICE /src/
+COPY strictdoc /src/strictdoc
+RUN if [ "$INSTALL_CHROME" = "true" ]; then extra="[html2pdf]"; else extra=""; fi \
+    && /opt/venv/bin/pip install --no-cache-dir "/src${extra}"
+
 FROM python:3.12-slim-trixie
 
 ARG PLANTUML_VERSION=1.2026.10
@@ -26,15 +45,19 @@ ARG STRICTDOC_UID=1000
 ARG STRICTDOC_GID=1000
 
 # Java and Graphviz draw PlantUML diagrams. The DejaVu fonts give PlantUML
-# its text metrics and Typst the fonts of the SVG files.
+# its text metrics and Typst the fonts of the SVG files. Java's AWT needs
+# FreeType and fontconfig.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     fontconfig \
     fonts-dejavu-core \
     git \
     graphviz \
-    openjdk-21-jre-headless \
-    && rm -rf /var/lib/apt/lists/*
+    libfreetype6 \
+    && rm -rf /var/lib/apt/lists/* /usr/share/doc/* /usr/share/man/*
+
+COPY --from=jre /opt/jre /opt/java
+ENV JAVA_HOME=/opt/java
 
 RUN if [ "$INSTALL_CHROME" = "true" ]; then \
       apt-get update \
@@ -47,20 +70,16 @@ RUN if [ "$INSTALL_CHROME" = "true" ]; then \
 
 COPY --from=typst /bin/typst /usr/local/bin/typst
 
-ADD --checksum=sha256:${PLANTUML_SHA256} \
+# --chmod also sets the mode of the folder it creates, so it must keep x.
+ADD --checksum=sha256:${PLANTUML_SHA256} --chmod=755 \
     https://github.com/plantuml/plantuml/releases/download/v${PLANTUML_VERSION}/plantuml-${PLANTUML_VERSION}.jar \
     /opt/plantuml/plantuml.jar
-RUN chmod 644 /opt/plantuml/plantuml.jar \
-    && printf '#!/bin/sh\nexec java -Djava.awt.headless=true -jar /opt/plantuml/plantuml.jar "$@"\n' \
+RUN printf '#!/bin/sh\nexec java -Djava.awt.headless=true -jar /opt/plantuml/plantuml.jar "$@"\n' \
        > /usr/local/bin/plantuml \
     && chmod 755 /usr/local/bin/plantuml
 
-RUN python3 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-COPY pyproject.toml README.md LICENSE NOTICE /src/
-COPY strictdoc /src/strictdoc
-RUN pip install --no-cache-dir /src && rm -rf /src
+COPY --from=venv /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:/opt/java/bin:$PATH"
 
 # The PDF build of typst_pdf_command. An image built on this one adds its
 # report template and assets to /opt/strictdoc-typst/templates.

@@ -109,6 +109,6 @@ providers (e.g. Microsoft Entra ID) send group IDs instead of names.
 The server uses the general StrictDoc image of `deploy/docker`, which also
 has Typst and PlantUML, so the web UI's `Export to PDF (Typst)` works here
 once the project sets `typst_pdf_command` (see `deploy/docker/README.md`).
-The compose file builds it with `INSTALL_CHROME=true` (needed for PDF
-printing) unless `.env` sets `INSTALL_CHROME=false`. `STRICTDOC_UID` and
+The compose file builds it without Chrome, so the server makes PDFs with
+Typst. Set `INSTALL_CHROME=true` in `.env` for the HTML2PDF export. `STRICTDOC_UID` and
 `STRICTDOC_GID` default to `1000`.

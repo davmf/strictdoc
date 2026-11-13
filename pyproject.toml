@@ -111,20 +111,18 @@ dependencies = [
     # Watching project files for the server's --watch live-reload.
     "watchdog >= 2.1.7",
 
-    # HTML2PDF dependencies
-    "html2pdf4doc == 0.0.35",
-    "pypdf==6.*,>=6.5.0",
-
     # Robot Framework dependencies
     "robotframework >= 4.0.0",
-
-    # Tree map graphs.
-    "plotly",
-    "pandas"
 ]
 # @relation(SDOC-SRS-89, scope=range_end)
 
 [project.optional-dependencies]
+# The HTML2PDF export (HTML printed to PDF with Chrome):
+# pip install "strictdoc[html2pdf]". The Typst PDF export does not need it.
+html2pdf = [
+    "html2pdf4doc == 0.0.35",
+    "pypdf==6.*,>=6.5.0",
+]
 # Not used by tasks.py (which pip-installs these via requirements.bootstrap.txt
 # instead). This extra exists for flake.nix, so that `nix develop` can build
 # a fully Nix-provided invoke+uv without a network round trip; from there,
@@ -189,6 +187,8 @@ check = [
     # keep the HTML2PDF integration tests validated against a known-good
     # pypdf release; text-extraction behavior has changed across 6.x.
     "pypdf==6.16.1",
+    # The html2pdf extra, which the tests of the HTML2PDF export need.
+    "html2pdf4doc == 0.0.35",
 
     # End2end tests.
     # A bare "seleniumbase" leads uv's resolver into an ancient 1.x branch

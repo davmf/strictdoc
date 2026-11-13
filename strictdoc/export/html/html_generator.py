@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import orjson
-from html2pdf4doc import PATH_TO_HTML2PDF4DOC_JS
 
 from strictdoc.backend.sdoc.models.document import SDocDocument
 from strictdoc.core.asset_manager import AssetDir
@@ -30,6 +29,9 @@ from strictdoc.features.deep_trace.generator import (
 )
 from strictdoc.features.html2pdf.generator import (
     DocumentHTML2PDFGenerator,
+)
+from strictdoc.features.html2pdf.html2pdf4doc_package import (
+    import_html2pdf4doc,
 )
 from strictdoc.features.project_index.generator import (
     DocumentTreeHTMLGenerator,
@@ -304,8 +306,9 @@ class HTMLGenerator:
 
         # Export HTML2PDF.
         if project_config.is_feature_activated(ProjectFeature.HTML2PDF):
+            html2pdf4doc = import_html2pdf4doc()
             sync_dir(
-                os.path.dirname(PATH_TO_HTML2PDF4DOC_JS),
+                os.path.dirname(html2pdf4doc.PATH_TO_HTML2PDF4DOC_JS),
                 output_html_static_files,
                 message="Copying HTML2PDF.js",
             )

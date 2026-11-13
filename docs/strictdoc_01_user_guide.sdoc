@@ -6887,6 +6887,16 @@ There are three methods of PDF printing available:
 3. Also in the web interface, by navigating to a 'PDF' view of a document and
    using the browser's built-in Print function.
 
+All three methods need the optional ``html2pdf`` dependencies (html2pdf4doc,
+Selenium and pypdf), which a plain ``pip install strictdoc`` does not install:
+
+.. code:: text
+
+    pip install "strictdoc[html2pdf]"
+
+Without them, StrictDoc stops with an error when the ``HTML2PDF`` feature is
+activated. The Typst PDF export does not need them.
+
 The first two methods require the Chrome browser and chromedriver to be
 installed on the user's computer. StrictDoc downloads chromedriver on demand by
 default, or uses a pre installed executable if ``strictdoc export

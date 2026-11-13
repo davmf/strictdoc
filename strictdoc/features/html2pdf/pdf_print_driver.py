@@ -6,10 +6,10 @@ import os.path
 from subprocess import CalledProcessError, CompletedProcess, TimeoutExpired, run
 from typing import List, Tuple
 
-from html2pdf4doc.main import HPDExitCode
-
 from strictdoc.core.project_config import ProjectConfig
-from strictdoc.features.html2pdf.pdf_postprocessor import PDFPostprocessor
+from strictdoc.features.html2pdf.html2pdf4doc_package import (
+    import_html2pdf4doc,
+)
 from strictdoc.helpers.timing import measure_performance
 
 
@@ -40,14 +40,19 @@ class PDFPrintDriverException(Exception):
     def is_could_not_detect_chrome(self) -> bool:
         return (
             isinstance(self.exception, CalledProcessError)
-            and self.exception.returncode == HPDExitCode.COULD_NOT_FIND_CHROME
+            and self.exception.returncode
+            == import_html2pdf4doc(
+                "html2pdf4doc.main"
+            ).HPDExitCode.COULD_NOT_FIND_CHROME
         )
 
     def is_js_success_timeout(self) -> bool:
         return (
             isinstance(self.exception, CalledProcessError)
             and self.exception.returncode
-            == HPDExitCode.DID_NOT_RECEIVE_SUCCESS_STATUS_FROM_HTML2PDF4DOC_JS
+            == import_html2pdf4doc(
+                "html2pdf4doc.main"
+            ).HPDExitCode.DID_NOT_RECEIVE_SUCCESS_STATUS_FROM_HTML2PDF4DOC_JS
         )
 
 
@@ -59,6 +64,13 @@ class PDFPrintDriver:
         path_to_input_root: str,
     ) -> None:
         assert isinstance(paths_to_print, list), paths_to_print
+        # Fails with an installation hint if the html2pdf extra is missing.
+        import_html2pdf4doc()
+        # pypdf comes with the html2pdf extra.
+        from strictdoc.features.html2pdf.pdf_postprocessor import (  # noqa: PLC0415
+            PDFPostprocessor,
+        )
+
         path_to_html2pdf4doc_cache = os.path.join(
             project_config.get_path_to_cache_dir(), "html2pdf"
         )

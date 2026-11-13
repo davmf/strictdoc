@@ -1044,6 +1044,15 @@ class ProjectConfig:
                 "strictdoc_config.py file.",
             )
 
+        if self.is_activated_html2pdf():
+            from strictdoc.features.html2pdf.html2pdf4doc_package import (  # noqa: PLC0415
+                HTML2PDF4DOC_MISSING_MESSAGE,
+                is_html2pdf4doc_installed,
+            )
+
+            if not is_html2pdf4doc_installed():
+                raise ValueError(f"config: {HTML2PDF4DOC_MISSING_MESSAGE}")
+
         #
         # Validate HTML2PDF template path.
         #

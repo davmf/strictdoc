@@ -11,16 +11,17 @@ Runs StrictDoc in its Docker image, on the project in the current folder
   export [-Formats html,typst-pdf]
                             Export to ./output.
   shell                     A bash shell in the image, in the project.
-  build                     Build the image strictdoc:local from the
-                            StrictDoc checkout of this script.
 
 Arguments after the command go to StrictDoc, for example
   ./strictdoc.ps1 export --formats json --output-dir build/json
 
-The image is -Image, else $env:STRICTDOC_IMAGE, else strictdoc:local. An
-image built on this one can have a wrapper script that sets
-STRICTDOC_IMAGE. The container runs as you, so the files it writes belong
-to you.
+The image is -Image, else $env:STRICTDOC_IMAGE, else $DefaultImage below.
+The image prints this script with its own name as $DefaultImage:
+
+  docker run --rm --entrypoint strictdoc-launcher <image> > strictdoc.ps1
+
+The script needs only Docker and the image. The container runs as you, so
+the files it writes belong to you.
 
 .EXAMPLE
 ./strictdoc.ps1 new -Title "Kettle"
@@ -29,23 +30,27 @@ to you.
 [CmdletBinding(PositionalBinding = $false)]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("new", "server", "export", "shell", "build", "help")]
+    [ValidateSet("new", "server", "export", "shell", "help")]
     [string] $Command = "help",
 
     [string] $Title,
     [string] $Project = (Get-Location).Path,
-    [string] $Image = $(if ($env:STRICTDOC_IMAGE) { $env:STRICTDOC_IMAGE } else { "strictdoc:local" }),
+    [string] $Image,
     [int] $Port = 5111,
     [switch] $Watch,
     [string] $Formats = "html,typst-pdf",
-    # The StrictDoc checkout that "build" builds: the one of this script.
-    [string] $StrictDocRepo = (Join-Path $PSScriptRoot "../.."),
 
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]] $StrictDocArguments = @()
 )
 
 $ErrorActionPreference = "Stop"
+
+# strictdoc-launcher of the image replaces this name with the image's own.
+$DefaultImage = "strictdoc:local"
+if (-not $Image) {
+    $Image = if ($env:STRICTDOC_IMAGE) { $env:STRICTDOC_IMAGE } else { $DefaultImage }
+}
 
 function Invoke-Docker([string[]] $Arguments) {
     & docker @Arguments
@@ -83,9 +88,5 @@ switch ($Command) {
     }
     "shell" {
         Invoke-Docker ((Get-RunArguments ($Terminal + @("--entrypoint", "bash"))) + @($Image))
-    }
-    "build" {
-        $repository = (Resolve-Path $StrictDocRepo).Path
-        Invoke-Docker @("build", "-f", (Join-Path $repository "deploy/docker/Dockerfile"), "-t", "strictdoc:local", $repository)
     }
 }

@@ -53,19 +53,24 @@ Other tools in the image: `typst`, `plantuml`, `git`,
 
 ## From PowerShell
 
-`strictdoc.ps1` wraps the commands below for the project in the current
-folder (or `-Project`):
+The image carries `strictdoc.ps1`, a PowerShell script that runs it on the
+project in the current folder (or `-Project`). It needs only Docker and the
+image. Get it from the image, with the image's name as its default:
 
-    ./deploy/docker/strictdoc.ps1 new -Title "My project"
-    ./deploy/docker/strictdoc.ps1 server -Watch    # Ctrl+C stops it
-    ./deploy/docker/strictdoc.ps1 export           # html,typst-pdf; or -Formats
-    ./deploy/docker/strictdoc.ps1 shell
-    ./deploy/docker/strictdoc.ps1 build            # builds strictdoc:local
-    ./deploy/docker/strictdoc.ps1 help
+    docker run --rm --entrypoint strictdoc-launcher strictdoc:local > strictdoc.ps1
 
-Arguments after the command go to StrictDoc. The image is `-Image`, else
-`$env:STRICTDOC_IMAGE`, else `strictdoc:local`, so an image built on this
-one can have a wrapper that sets `STRICTDOC_IMAGE` and calls this script.
+Then:
+
+    ./strictdoc.ps1 new -Title "My project"
+    ./strictdoc.ps1 server -Watch    # Ctrl+C stops it
+    ./strictdoc.ps1 export           # html,typst-pdf; or -Formats
+    ./strictdoc.ps1 shell
+    ./strictdoc.ps1 help
+
+Arguments after the command go to StrictDoc. `-Image` or
+`$env:STRICTDOC_IMAGE` choose another image. For an image under another
+name, give the name: `strictdoc-launcher registry.example.com/strictdoc:1.0`.
+An image built on this one sets `STRICTDOC_IMAGE_NAME` to its name.
 
 ## A new project
 

@@ -51,6 +51,22 @@ this image.
 Other tools in the image: `typst`, `plantuml`, `git`,
 `strictdoc-typst-build` and `strictdoc-new-project`.
 
+## From PowerShell
+
+`strictdoc.ps1` wraps the commands below for the project in the current
+folder (or `-Project`):
+
+    ./deploy/docker/strictdoc.ps1 new -Title "My project"
+    ./deploy/docker/strictdoc.ps1 server -Watch    # Ctrl+C stops it
+    ./deploy/docker/strictdoc.ps1 export           # html,typst-pdf; or -Formats
+    ./deploy/docker/strictdoc.ps1 shell
+    ./deploy/docker/strictdoc.ps1 build            # builds strictdoc:local
+    ./deploy/docker/strictdoc.ps1 help
+
+Arguments after the command go to StrictDoc. The image is `-Image`, else
+`$env:STRICTDOC_IMAGE`, else `strictdoc:local`, so an image built on this
+one can have a wrapper that sets `STRICTDOC_IMAGE` and calls this script.
+
 ## A new project
 
 `strictdoc-new-project` sets up a new project in the SysML tracker layout:

@@ -2,7 +2,7 @@ import os
 import re
 import shutil
 import sys
-from typing import List
+from typing import List, Optional
 
 from fastapi.testclient import TestClient
 
@@ -15,7 +15,10 @@ PATH_TO_OUTPUT_FOLDER = os.path.join(PATH_TO_THIS_TEST_FOLDER, "output")
 PATH_TO_FAKE_BUILDER = os.path.join(PATH_TO_THIS_TEST_FOLDER, "fake_builder.py")
 
 
-def create_client(typst_pdf_command: List[str]) -> TestClient:
+def create_client(
+    typst_pdf_command: Optional[List[str]],
+    typst_template: str = "company-report",
+) -> TestClient:
     shutil.rmtree(PATH_TO_OUTPUT_FOLDER, ignore_errors=True)
     server_config = ServerCommandConfig(
         debug=False,
@@ -30,6 +33,7 @@ def create_client(typst_pdf_command: List[str]) -> TestClient:
     project_config: ProjectConfig = ProjectConfig.default_config()
     project_config.project_features.append(ProjectFeature.TYPST_PDF)
     project_config.typst_pdf_command = typst_pdf_command
+    project_config.typst_template = typst_template
     project_config.integrate_server_config(server_config)
     return TestClient(create_app(project_config=project_config))
 
@@ -96,4 +100,28 @@ def test_04_missing_image_error_explains_how_to_build_it():
     response = client.get(f"/export_typst_pdf/{document_mid}")
     assert response.status_code == 500
     assert "Build it locally" in response.content.decode()
+    assert "typst_pdf_builder_image" in response.content.decode()
+
+
+def test_05_generic_template_by_default():
+    client = create_client(
+        [sys.executable, PATH_TO_FAKE_BUILDER, "{dir}"],
+        typst_template=ProjectConfig.default_config().typst_template,
+    )
+    document_mid = get_document_mid(client)
+
+    response = client.get(f"/export_typst_pdf/{document_mid}")
+    assert response.status_code == 200, response.content
+    exported_typ = response.content.decode()
+    assert '#import "strictdoc-report.typ": strictdoc-report' in exported_typ
+    assert "#show: strictdoc-report.with(" in exported_typ
+    assert "company-report" not in exported_typ
+
+
+def test_06_external_template_without_builder_image_explains_the_option():
+    client = create_client(None)
+    document_mid = get_document_mid(client)
+
+    response = client.get(f"/export_typst_pdf/{document_mid}")
+    assert response.status_code == 500
     assert "typst_pdf_builder_image" in response.content.decode()

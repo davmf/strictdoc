@@ -1,10 +1,12 @@
 """
-Writes an SDoc document as a Typst document in the company report style.
+Writes an SDoc document as a Typst document.
 
-The document imports the company-report template, which draws the letterhead,
-page header and footer, and the author and revision tables. The template is
-the company's and is not part of StrictDoc: the company typst-doc-builder
-image places it next to the exported files when it compiles them.
+The document imports a report template, which draws the title page, the
+page header and footer, and the author and revision tables. By default it is
+strictdoc-report.typ, which StrictDoc writes next to the documents. Another
+typst_template is an external template, which is not part of StrictDoc: the
+build image or command places it next to the exported files when it compiles
+them.
 """
 
 import re
@@ -70,12 +72,14 @@ class TypstWriter:
         self.warnings: List[str] = []
 
     def write(self, document: SDocDocument, diagram_name_prefix: str) -> str:
+        use_kroki = self.project_config.typst_kroki
         document_labels = self._collect_labels(document)
         converter = RstToTypstConverter(
             path_to_output_dir=self.path_to_output_dir,
             render_link=lambda uid_: self._render_link(uid_, document_labels),
             render_anchor=self._render_anchor,
             diagram_name_prefix=diagram_name_prefix,
+            kroki_diagrams=use_kroki,
         )
         writer = _DocumentWriter(
             document=document,
@@ -86,14 +90,22 @@ class TypstWriter:
         )
         body = writer.write_body()
 
+        template = self.project_config.typst_template
+        render_diagrams = use_kroki and converter.has_diagrams
+
         output = "// Exported by StrictDoc. Do not edit: export the document again.\n"
-        output += '#import "company-report.typ": company-report\n'
-        if converter.has_diagrams:
+        output += f'#import "{template}.typ": {template}\n'
+        if render_diagrams:
             output += '#import "kroki.typ": kroki\n'
         output += '#import "strictdoc.typ": *\n\n'
         output += self._write_report_header(document, writer.revisions)
-        if converter.has_diagrams:
+        if render_diagrams:
             output += "#show: kroki\n"
+        if converter.has_diagrams and not use_kroki:
+            self.warnings.append(
+                f"{document.title}: Mermaid and PlantUML diagrams are shown "
+                "as source text. Set typst_kroki to render them with Kroki."
+            )
         output += "\n#outline(depth: 2)\n#pagebreak()\n\n"
         output += body
         output += "\n"
@@ -104,7 +116,9 @@ class TypstWriter:
         return output
 
     def _write_report_header(
-        self, document: SDocDocument, revisions: List[Tuple[str, str, str]]
+        self,
+        document: SDocDocument,
+        revisions: List[Tuple[str, str, str]],
     ) -> str:
         assert document.meta is not None
         version = self._resolve_git_variables(document.config.version)
@@ -112,15 +126,20 @@ class TypstWriter:
             version = revisions[-1][0]
         date = self._resolve_git_variables(document.config.date)
 
-        # One argument per line, each a string literal: typst-doc-builder
-        # reads doc_no, version and title from these lines to name the PDF.
+        # A builder can name the PDF after doc_no and version, so the project
+        # config can give the values of a document that has none.
+        doc_no = document.config.uid or self.project_config.typst_default_doc_no
+        version = version or self.project_config.typst_default_version
+
+        # One argument per line, each a string literal, so that a builder can
+        # read doc_no, version and title from these lines to name the PDF.
         arguments: List[str] = [
             f"title: {string_literal(document.title)}",
             f"author: {string_literal(self._metadata(document, 'AUTHOR'))}",
             "author_role: "
             + string_literal(self._metadata(document, "AUTHOR_ROLE")),
-            f"doc_no: {string_literal(document.config.uid or 'XXX_XXXX')}",
-            f"version: {string_literal(version or '01')}",
+            f"doc_no: {string_literal(doc_no)}",
+            f"version: {string_literal(version)}",
             f"project: {string_literal(self.project_config.project_title)}",
             f"filename: {string_literal(document.meta.document_filename)}",
         ]
@@ -141,7 +160,7 @@ class TypstWriter:
                 f"revision-history: sd-revision-history(\n{rows}  )"
             )
 
-        output = "#show: company-report.with(\n"
+        output = f"#show: {self.project_config.typst_template}.with(\n"
         output += "".join(f"  {argument_},\n" for argument_ in arguments)
         output += ")\n"
         return output

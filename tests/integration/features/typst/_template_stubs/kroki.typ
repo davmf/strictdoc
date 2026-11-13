@@ -1,4 +1,4 @@
-// A stand-in for the kroki.typ show rule of the company typst-doc-builder, which
+// A stand-in for the kroki.typ show rule of a build image, which
 // draws diagrams from SVG files that a Kroki server renders. It draws a box
 // in place of each diagram, so that the tests need no Kroki server.
 #let kroki(cache-dir: ".kroki-cache", body) = {

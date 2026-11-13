@@ -1,6 +1,6 @@
 #
 # Each document becomes one .typ file in a single folder, named after its
-# path, because typst-doc-builder compiles the files of one folder. A link or
+# path, because a build image compiles the files of one folder. A link or
 # relation to a node of another document names that document, since the node
 # is not in the same PDF.
 #

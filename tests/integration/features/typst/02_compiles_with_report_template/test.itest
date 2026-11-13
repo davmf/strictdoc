@@ -1,11 +1,11 @@
 #
 # The exported document compiles with Typst, using stand-ins for the
-# company-report and kroki templates of the company typst-doc-builder.
+# external report template and kroki.typ that a build image would provide.
 #
 
 REQUIRES: TYPST_AVAILABLE
 
-RUN: %strictdoc export --formats=typst --output-dir %T "%S/../01_company_report_document/input.sdoc" | filecheck %s --dump-input=fail
+RUN: %strictdoc export --formats=typst --output-dir %T --config "%S/../01_external_template_document/strictdoc_config.py" "%S/../01_external_template_document/input.sdoc" | filecheck %s --dump-input=fail
 CHECK: Step 'Export SDoc' took
 
 RUN: %cp "%S/../_template_stubs/company-report.typ" "%T/typst/company-report.typ"

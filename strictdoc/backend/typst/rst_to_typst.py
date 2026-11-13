@@ -156,6 +156,7 @@ class RstToTypstConverter:
         render_link: Callable[[str], str],
         render_anchor: Callable[[str], str],
         diagram_name_prefix: str,
+        kroki_diagrams: bool = True,
     ) -> None:
         """
         path_to_output_dir: the directory of the .typ file, which images are
@@ -164,11 +165,15 @@ class RstToTypstConverter:
         render_anchor:      writes the Typst of an [ANCHOR: <uid>].
         diagram_name_prefix: makes the Kroki cache names of this document's
                             diagrams unique in the output directory.
+        kroki_diagrams:     prepare the diagram sources for a Kroki renderer
+                            of the build (the typst_kroki option). Without
+                            it, the sources are written as they are.
         """
         self.path_to_output_dir: str = path_to_output_dir
         self.render_link: Callable[[str], str] = render_link
         self.render_anchor: Callable[[str], str] = render_anchor
         self.diagram_name_prefix: str = diagram_name_prefix
+        self.kroki_diagrams: bool = kroki_diagrams
         self.diagram_count: int = 0
         self.has_diagrams: bool = False
         self.warnings: List[str] = []
@@ -377,23 +382,23 @@ class RstToTypstConverter:
 
     def _diagram(self, language: str, source: str) -> str:
         """
-        Write a diagram as a fenced raw block. render_kroki.py of the company
-        typst-doc-builder renders each fenced block of a Kroki language to an
-        SVG, which kroki.typ shows in place of the block. The name comment
-        gives the SVG a stable file name.
+        Write a diagram as a fenced raw block. With typst_kroki, a renderer
+        of the build turns each fenced block of a Kroki language into an SVG,
+        which kroki.typ shows in place of the block. The name comment gives
+        the SVG a stable file name.
         """
         self.has_diagrams = True
         self.diagram_count += 1
         name = f"{self.diagram_name_prefix}-diagram-{self.diagram_count}"
         lines = [line_.rstrip() for line_ in source.strip("\n").splitlines()]
-        if language == "mermaid":
+        if self.kroki_diagrams and language == "mermaid":
             lines = _with_classic_mermaid_shapes(lines)
             lines.insert(0, f"%% mermaid-name: {name}")
             # Typst does not draw the HTML labels that Mermaid puts in its
             # SVG by default, so ask for SVG text labels instead. Mermaid
             # merges this directive with any that the source has.
             lines.insert(0, MERMAID_SVG_LABELS_DIRECTIVE)
-        elif language == "plantuml":
+        elif self.kroki_diagrams and language == "plantuml":
             if len(lines) > 0 and lines[0].strip() == "@startuml":
                 lines[0] = f"@startuml {name}"
         # A fence inside the source would end the block early.
@@ -631,9 +636,10 @@ class RstToTypstConverter:
 def _with_classic_mermaid_shapes(lines: List[str]) -> List[str]:
     """
     Rewrite nodes with the shape syntax of Mermaid 11.3 to the older node
-    syntax. The company Kroki server (Mermaid 11.12.3) rejects any diagram with
-    a shape node, which the SysML diagrams use for decisions and forks. A
-    decision becomes a rhombus, and a fork or join a small filled box.
+    syntax. Some Kroki servers (one with Mermaid 11.12.3, for example)
+    reject any diagram with a shape node, which the SysML diagrams use for
+    decisions and forks. A decision becomes a rhombus, and a fork or join a
+    small filled box.
     """
     output: List[str] = []
     bar_node_ids: List[str] = []

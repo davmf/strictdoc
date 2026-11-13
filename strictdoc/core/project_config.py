@@ -134,10 +134,8 @@ class ProjectFeature(str, Enum):
 
 class ProjectConfigDefault:
     DEFAULT_PROJECT_TITLE = "Untitled Project"
-    DEFAULT_TYPST_PDF_BUILDER_IMAGE = (
-        "registry.example.com"
-        "/tools/typst-doc-builder:latest"
-    )
+    # StrictDoc's own report template of the Typst export.
+    DEFAULT_TYPST_TEMPLATE = "strictdoc-report"
     DEFAULT_DIR_FOR_SDOC_ASSETS = "_static"
     DEFAULT_DIR_FOR_OUTPUT = "output"
     DEFAULT_DIR_FOR_SDOC_CACHE = "output/_cache"
@@ -201,14 +199,26 @@ class ProjectConfig:
         html2pdf_template: Optional[str] = None,
         html2pdf_forced_page_break_nodes: Optional[List[str]] = None,
         html2pdf_disable_ssl_check: bool = False,
-        # The TYPST_PDF feature compiles the Typst export of a document with
-        # this image of the company typst-doc-builder.
-        typst_pdf_builder_image: str = (
-            ProjectConfigDefault.DEFAULT_TYPST_PDF_BUILDER_IMAGE
-        ),
-        # A command that replaces "docker run <image>": an argv in which
+        # The report template of the Typst export. "strictdoc-report" is
+        # StrictDoc's own template, which compiles with the typst command.
+        # Another name is an external template, "<name>.typ" with a function
+        # "<name>", that the build image or command provides.
+        typst_template: str = ProjectConfigDefault.DEFAULT_TYPST_TEMPLATE,
+        # The export imports kroki.typ and writes the diagrams for a Kroki
+        # renderer, which the build image or command provides.
+        typst_kroki: bool = False,
+        # The doc_no and version of a document without a UID or VERSION, for
+        # templates or builders that need them.
+        typst_default_doc_no: str = "",
+        typst_default_version: str = "",
+        # An external template compiles with this image: "docker run" mounts
+        # the folder of the .typ files at /work. There is no default: set it,
+        # or set typst_pdf_command.
+        typst_pdf_builder_image: Optional[str] = None,
+        # A command that replaces the default build (typst compile, or
+        # "docker run <image>" for an external template): an argv in which
         # "{dir}" is the folder of the exported .typ files. It must write the
-        # PDF into that folder.
+        # PDF files into that folder.
         typst_pdf_command: Optional[List[str]] = None,
         bundle_document_uid: Optional[str] = None,
         bundle_document_version: Optional[
@@ -468,11 +478,35 @@ class ProjectConfig:
 
         self.html2pdf_template: Optional[str] = html2pdf_template
 
-        assert isinstance(typst_pdf_builder_image, str), (
-            "config: typst_pdf_builder_image: "
-            f"must be a string: {typst_pdf_builder_image}."
+        assert isinstance(typst_template, str) and (
+            re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]*", typst_template) is not None
+        ), (
+            "config: typst_template: must be a Typst identifier, the name of "
+            f"the template file without .typ: {typst_template}."
         )
-        self.typst_pdf_builder_image: str = typst_pdf_builder_image
+        self.typst_template: str = typst_template
+        assert isinstance(typst_kroki, bool), (
+            f"config: typst_kroki: must be a True/False value: {typst_kroki}."
+        )
+        self.typst_kroki: bool = typst_kroki
+        assert isinstance(typst_default_doc_no, str), (
+            "config: typst_default_doc_no: "
+            f"must be a string: {typst_default_doc_no}."
+        )
+        self.typst_default_doc_no: str = typst_default_doc_no
+        assert isinstance(typst_default_version, str), (
+            "config: typst_default_version: "
+            f"must be a string: {typst_default_version}."
+        )
+        self.typst_default_version: str = typst_default_version
+        assert typst_pdf_builder_image is None or (
+            isinstance(typst_pdf_builder_image, str)
+            and len(typst_pdf_builder_image) > 0
+        ), (
+            "config: typst_pdf_builder_image: "
+            f"must be a non-empty string: {typst_pdf_builder_image}."
+        )
+        self.typst_pdf_builder_image: Optional[str] = typst_pdf_builder_image
         if typst_pdf_command is not None:
             assert isinstance(typst_pdf_command, list) and all(
                 isinstance(item_, str) for item_ in typst_pdf_command
@@ -1221,6 +1255,11 @@ class ProjectConfig:
     def is_activated_typst_pdf(self) -> bool:
         return ProjectFeature.TYPST_PDF in self.project_features
 
+    def is_typst_template_external(self) -> bool:
+        return (
+            self.typst_template != ProjectConfigDefault.DEFAULT_TYPST_TEMPLATE
+        )
+
     def is_activated_diff(self) -> bool:
         return ProjectFeature.DIFF in self.project_features
 
@@ -1580,9 +1619,11 @@ class ProjectConfigLoader:
         chromedriver: Optional[str] = None
         chrome_binary: Optional[str] = None
         html2pdf_disable_ssl_check: bool = False
-        typst_pdf_builder_image: str = (
-            ProjectConfigDefault.DEFAULT_TYPST_PDF_BUILDER_IMAGE
-        )
+        typst_template: str = ProjectConfigDefault.DEFAULT_TYPST_TEMPLATE
+        typst_kroki: bool = False
+        typst_default_doc_no: str = ""
+        typst_default_version: str = ""
+        typst_pdf_builder_image: Optional[str] = None
         typst_pdf_command: Optional[List[str]] = None
 
         section_behavior: str = ProjectConfigDefault.DEFAULT_SECTION_BEHAVIOR
@@ -1668,6 +1709,16 @@ class ProjectConfigLoader:
 
             chrome_binary = project_content.get("chrome_binary", chrome_binary)
 
+            typst_template = project_content.get(
+                "typst_template", typst_template
+            )
+            typst_kroki = project_content.get("typst_kroki", typst_kroki)
+            typst_default_doc_no = project_content.get(
+                "typst_default_doc_no", typst_default_doc_no
+            )
+            typst_default_version = project_content.get(
+                "typst_default_version", typst_default_version
+            )
             typst_pdf_builder_image = project_content.get(
                 "typst_pdf_builder_image", typst_pdf_builder_image
             )
@@ -1782,6 +1833,10 @@ class ProjectConfigLoader:
             chromedriver=chromedriver,
             chrome_binary=chrome_binary,
             html2pdf_disable_ssl_check=html2pdf_disable_ssl_check,
+            typst_template=typst_template,
+            typst_kroki=typst_kroki,
+            typst_default_doc_no=typst_default_doc_no,
+            typst_default_version=typst_default_version,
             typst_pdf_builder_image=typst_pdf_builder_image,
             typst_pdf_command=typst_pdf_command,
             section_behavior=section_behavior,

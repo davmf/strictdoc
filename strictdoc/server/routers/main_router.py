@@ -5175,8 +5175,8 @@ def create_main_router(
     @router.get("/export_typst_pdf/{document_mid}", response_class=Response)
     def get_export_typst_pdf(document_mid: str) -> Response:
         """
-        Export one document to Typst and compile it to a PDF in the company
-        report style with the typst-doc-builder image.
+        Export one document to Typst and compile it to a PDF, as the
+        typst-pdf export does.
         """
         if not project_config.is_activated_typst_pdf():
             return Response(

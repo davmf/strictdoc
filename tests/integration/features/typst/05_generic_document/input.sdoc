@@ -1,0 +1,18 @@
+[DOCUMENT]
+TITLE: Gadget Requirements
+UID: GAD-SRS
+VERSION: 1.2
+
+[REQUIREMENT]
+UID: GAD-1
+TITLE: Start-up
+STATEMENT: >>>
+The gadget shall start in under two seconds:
+
+.. raw:: html
+
+    <pre class="mermaid">
+    graph TD
+    A[Power on] --&gt; B(Ready)
+    </pre>
+<<<

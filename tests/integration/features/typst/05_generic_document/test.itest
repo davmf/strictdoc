@@ -1,0 +1,21 @@
+#
+# By default, the Typst export uses StrictDoc's own report template, which is
+# written next to the documents, and needs neither an external template nor
+# Kroki. Diagrams are shown as their source.
+#
+
+RUN: %strictdoc export --formats=typst --output-dir %T "%S/input.sdoc" | filecheck %s --dump-input=fail
+CHECK: warning: Typst export: Gadget Requirements: Mermaid and PlantUML diagrams are shown as source text. Set typst_kroki to render them with Kroki.
+CHECK: Step 'Export SDoc' took
+
+RUN: %check_exists --file "%T/typst/strictdoc.typ"
+RUN: %check_exists --file "%T/typst/strictdoc-report.typ"
+
+RUN: %cat "%T/typst/input.typ" | filecheck %s --dump-input=fail --check-prefix CHECK-TYP
+CHECK-TYP-NOT: kroki
+CHECK-TYP: #import "strictdoc-report.typ": strictdoc-report
+CHECK-TYP: #show: strictdoc-report.with(
+CHECK-TYP:   doc_no: "GAD-SRS",
+CHECK-TYP:   version: "1.2",
+CHECK-TYP: ```mermaid
+CHECK-TYP-NEXT: graph TD

@@ -1,6 +1,6 @@
-// A stand-in for the company-report template, which is not part of StrictDoc.
-// It takes the same arguments, so that the tests can compile the exported
-// documents.
+// A stand-in for an external report template, which a build image would
+// provide. It takes the arguments that StrictDoc writes, so that the tests can
+// compile the exported documents.
 #let company-report(
   title: "",
   author: "",

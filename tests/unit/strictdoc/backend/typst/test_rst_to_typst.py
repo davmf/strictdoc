@@ -224,3 +224,36 @@ def test_017_mermaid_shape_nodes_become_classic_nodes():
         "  style n33 fill:#333,stroke:#333",
         "```",
     ]
+
+
+def test_018_without_kroki_the_diagram_source_is_written_as_it_is():
+    converter = RstToTypstConverter(
+        path_to_output_dir="/nonexistent",
+        render_link=lambda uid_: f"<link {uid_}>",
+        render_anchor=lambda uid_: f"<anchor {uid_}>",
+        diagram_name_prefix="doc",
+        kroki_diagrams=False,
+    )
+    output = converter.convert(
+        """\
+.. raw:: html
+
+    <pre class="mermaid">
+    graph TD
+    A --&gt; B
+    </pre>
+
+.. raw:: html
+
+    <pre class="plantuml">
+    @startuml
+    A -> B
+    @enduml
+    </pre>
+"""
+    )
+    assert output == (
+        "```mermaid\ngraph TD\nA --> B\n```\n\n"
+        "```plantuml\n@startuml\nA -> B\n@enduml\n```"
+    )
+    assert converter.has_diagrams

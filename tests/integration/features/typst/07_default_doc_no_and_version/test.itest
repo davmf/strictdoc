@@ -1,0 +1,13 @@
+#
+# A document without a UID or VERSION gets the doc_no and version of the
+# typst_default_doc_no and typst_default_version options, for builders that
+# name the PDF after them.
+#
+
+RUN: %strictdoc export --formats=typst --output-dir %T --config "%S/strictdoc_config.py" "%S/input.sdoc" | filecheck %s --dump-input=fail
+CHECK: Step 'Export SDoc' took
+
+RUN: %cat "%T/typst/input.typ" | filecheck %s --dump-input=fail --check-prefix CHECK-TYP
+CHECK-TYP:   doc_no: "DOC-0000",
+CHECK-TYP-NEXT:   version: "draft",
+

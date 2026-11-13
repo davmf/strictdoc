@@ -20,6 +20,7 @@ EXPORT_FORMATS = [
     "markdown",
     "rst",
     "typst",
+    "typst-pdf",
     "json",
     "excel",
     "reqif-sdoc",

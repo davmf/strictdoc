@@ -1,0 +1,13 @@
+#
+# The typst-pdf export compiles each document with the typst command, using
+# StrictDoc's own report template. The PDF is named after the .typ file.
+#
+
+REQUIRES: TYPST_AVAILABLE
+
+RUN: %strictdoc export --formats=typst-pdf --output-dir %T "%S/../05_generic_document/input.sdoc" | filecheck %s --dump-input=fail
+CHECK: Typst PDF: {{.*}}typst-pdf{{/|\\}}input.pdf
+CHECK: Step 'Export SDoc' took
+
+RUN: %check_exists --file "%T/typst-pdf/input.typ"
+RUN: %check_exists --file "%T/typst-pdf/input.pdf"

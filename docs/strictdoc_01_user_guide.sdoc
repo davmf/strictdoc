@@ -2981,60 +2981,62 @@ without Sphinx/LaTeX, see the
 [[SECTION]]
 MID: 9a597f2db2a84b47bd104c663173c27d
 UID: SECTION-UG-PDF-export-via-Typst
-TITLE: PDF export via Typst (company report style)
+TITLE: PDF export via Typst
 
 [TEXT]
 MID: 0e069b5743c24eda9b3141f2b140338b
 STATEMENT: >>>
 The ``typst`` export writes each document as a `Typst <https://typst.app>`_
-file in the company report style. The company typst-doc-builder image
-compiles the files to PDF:
+file, and the ``typst-pdf`` export also compiles each one to a PDF:
 
 .. code:: text
 
     strictdoc export . --formats=typst --output-dir output
-    docker run --rm -v "$PWD/output/typst":/work \
-      registry.example.com/tools/typst-doc-builder:latest
+    strictdoc export . --formats=typst-pdf --output-dir output
 
-The image names each PDF ``<doc_no>_<version>-<title>.pdf``.
+By default, the documents use StrictDoc's own report template, and
+``typst-pdf`` compiles them with the ``typst`` command, which must be
+installed. Each PDF has the name of its ``.typ`` file. The documents can use
+an external template instead, described below.
 
 **Output**
 
-All documents are written to the ``output/typst/`` folder, one ``.typ`` file
-per document, because the image compiles the files of a single folder. The
-file name comes from the path of the document, for example
-``docs/srs.sdoc`` becomes ``docs-srs.typ``. The folder also gets
-``strictdoc.typ``, which lays out the requirement tables, and the project
-assets in ``_assets/``.
-
-The ``company-report.typ`` template and the company logo are not part of StrictDoc. The
-image places them next to the files when it compiles them.
+The ``typst`` export writes all documents to the ``output/typst/`` folder,
+and ``typst-pdf`` writes them, with the PDF files, to ``output/typst-pdf/``.
+There is one ``.typ`` file per document, in a single folder, so that a build
+image can compile the files of one folder. The file name comes
+from the path of the document, for example ``docs/srs.sdoc`` becomes
+``docs-srs.typ``. The folder also gets ``strictdoc.typ``, which lays out the
+requirement tables, ``strictdoc-report.typ``, the report template, and the
+project assets in ``_assets/``.
 
 **Report header**
 
-The document fields fill the report header and cover page:
+The document fields fill the title page and the page headers:
 
 .. list-table::
    :header-rows: 1
 
    * - Report
      - Document field
-   * - Document Title
+   * - Document title
      - ``TITLE``
-   * - Doc No.
+   * - Document number
      - ``UID``
    * - Version
      - ``VERSION``, or else the revision of the last ``REVISION`` node
+   * - Date
+     - ``DATE``, in the ``YYYY-MM-DD`` form
    * - Project
      - The project title (``--project-title`` or the project config)
    * - Author name and role
      - ``AUTHOR`` and ``AUTHOR_ROLE`` entries of the document ``METADATA``
-   * - Footer file name
+   * - Source file
      - The file name of the document
 
 **Revision history**
 
-The revision history table on the cover page is made from the nodes of type
+The revision history table on the title page is made from the nodes of type
 ``REVISION``, in document order. A ``REVISION`` node has the fields
 ``REVISION`` (or ``VERSION``), ``DATE`` and ``DESCRIPTION``. The nodes are
 not written into the document body. Add the element to the document grammar:
@@ -3043,7 +3045,7 @@ not written into the document body. Add the element to the document grammar:
 
     [DOCUMENT]
     TITLE: Widget Software Requirements
-    UID: 298_1013
+    UID: WSW-SRS
     METADATA:
       AUTHOR: Jo Bloggs
       AUTHOR_ROLE: Principal Software Engineer
@@ -3077,40 +3079,84 @@ are links in the PDF. A link to a node in another document shows the node and
 the title of its document.
 
 RST text is converted to Typst, including lists, tables, images, code blocks,
-notes and footnotes. Mermaid and PlantUML diagrams become diagram blocks that
-the image renders with Kroki. The diagram that StrictDoc draws at the top of
-each SysML document is left out of the PDF. Mermaid nodes with the ``@{ shape: ... }``
-syntax are rewritten in the older node syntax, because the company Kroki server
-rejects them. A ``.. raw:: typst`` block is copied into the
-output as is. Math is shown as LaTeX source. Other raw HTML is left out, with
-a warning. Text, HTML and Markdown fields are written as plain text.
+notes and footnotes. The default template shows Mermaid and PlantUML diagrams
+as their source text, with a warning. The diagram that StrictDoc draws at the
+top of each SysML document is left out of the PDF. A ``.. raw:: typst`` block
+is copied into the output as is. Math is shown as LaTeX source. Other raw
+HTML is left out, with a warning. Text, HTML and Markdown fields are written
+as plain text.
 
 **From the web interface**
 
 With the ``TYPST_PDF`` feature, the actions menu of a document has an
-``Export to PDF (company report)`` item. The server exports the document to a
-temporary folder, runs the builder image on it and returns the PDF as a
-download. The server needs Docker, and access to the image registry and the
-Kroki server.
+``Export to PDF (Typst)`` item. The server exports the document to a
+temporary folder, compiles it as ``typst-pdf`` does, and returns the PDF as a
+download. The feature is not needed for the command line.
 
-.. code:: toml
+**Build options**
 
-    [project]
-    features = [
-      # ...the features you already use...
-      "TYPST_PDF",
-    ]
+.. code-block:: python
 
-    # Optional: another image, for example a pinned version.
-    typst_pdf_builder_image = "registry.example.com/tools/typst-doc-builder:v1.0.0"
+    from strictdoc.core.project_config import ProjectConfig
 
-    # Optional: a command instead of "docker run <image>", for example with
-    # Podman. "{dir}" is the folder of the .typ files. The command must write
-    # the PDF into that folder.
-    typst_pdf_command = ["podman", "run", "--rm", "-v", "{dir}:/work", "typst-doc-builder"]
 
-A failed build shows the end of the builder output. A build stops after five
+    def create_config() -> ProjectConfig:
+        return ProjectConfig(
+            project_features=[
+                # ...the features you already use...
+                "TYPST_PDF",
+            ],
+            # Optional: a command instead of "typst compile". "{dir}" is the
+            # folder of the .typ files. The command must write the PDF files
+            # into that folder.
+            typst_pdf_command=["my-typst-build", "{dir}"],
+        )
+
+A failed build shows the end of the build output. A build stops after five
 minutes.
+
+**External report templates**
+
+``typst_template`` names the report template. ``strictdoc-report`` is
+StrictDoc's own. Another name is an external template, for example a company
+template with its letterhead and logo, which is not part of the project: the
+build provides ``<name>.typ``, with a function ``<name>`` that takes the
+arguments of the report header, and places it next to the documents. Each
+document then starts with ``#import "<name>.typ": <name>`` and
+``#show: <name>.with(...)``.
+
+An external template compiles with a Docker image, set with
+``typst_pdf_builder_image``. ``docker run`` mounts the folder of the ``.typ``
+files at ``/work``, and the image must write the PDF files into it.
+StrictDoc has no default image. ``typst_pdf_command`` replaces the
+``docker run`` command.
+
+With ``typst_kroki``, the documents also import ``kroki.typ``, which the
+build provides too, and the diagram blocks get stable names, for a build
+that renders them with `Kroki <https://kroki.io>`_. Mermaid nodes with the
+``@{ shape: ... }`` syntax are rewritten in the older node syntax, because
+some Kroki servers reject them.
+
+Each argument of the report header is on its own line, as a string literal,
+so that a build can name the PDF after the ``doc_no``, ``version`` and
+``title`` lines. ``typst_default_doc_no`` and ``typst_default_version`` give
+the values of a document without a ``UID`` or version. Both are empty by
+default.
+
+.. code-block:: python
+
+    def create_config() -> ProjectConfig:
+        return ProjectConfig(
+            typst_template="company-report",
+            typst_kroki=True,
+            typst_default_doc_no="DOC-0000",
+            typst_default_version="01",
+            # The build image, for example one built locally.
+            typst_pdf_builder_image="report-builder:local",
+            # Optional: a command instead of "docker run <image>", for example
+            # with Podman.
+            typst_pdf_command=["podman", "run", "--rm", "-v", "{dir}:/work", "report-builder"],
+        )
 <<<
 
 [[/SECTION]]

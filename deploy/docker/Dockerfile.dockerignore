@@ -1,0 +1,12 @@
+# Used by BuildKit when building with -f deploy/docker/Dockerfile.
+*
+!pyproject.toml
+!README.md
+!LICENSE
+!NOTICE
+!strictdoc/
+**/__pycache__
+**/output
+**/Output
+!deploy/docker/strictdoc-typst-build
+!deploy/docker/kroki.typ

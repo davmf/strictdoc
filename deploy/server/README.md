@@ -104,11 +104,11 @@ providers (e.g. Microsoft Entra ID) send group IDs instead of names.
     git pull                       # this repository
     docker compose up -d --build strictdoc
 
-## Building the image alone
+## The image
 
-From the repository root:
-
-    docker build -f deploy/server/Dockerfile -t strictdoc-server .
-
-Build arguments: `INSTALL_CHROME` (default `true`, needed for PDF printing),
-`STRICTDOC_UID`, `STRICTDOC_GID` (default `1000`).
+The server uses the general StrictDoc image of `deploy/docker`, which also
+has Typst and PlantUML, so the web UI's `Export to PDF (Typst)` works here
+once the project sets `typst_pdf_command` (see `deploy/docker/README.md`).
+The compose file builds it with `INSTALL_CHROME=true` (needed for PDF
+printing) unless `.env` sets `INSTALL_CHROME=false`. `STRICTDOC_UID` and
+`STRICTDOC_GID` default to `1000`.

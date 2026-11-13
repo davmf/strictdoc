@@ -1,0 +1,257 @@
+#!/usr/bin/env python3
+"""
+Compile a folder of .typ files exported by StrictDoc to PDF, drawing the
+PlantUML diagrams offline.
+
+Usage: strictdoc-typst-build <folder>
+
+StrictDoc runs this as its typst_pdf_command, with typst_kroki=True:
+
+    typst_kroki=True,
+    typst_pdf_command=["strictdoc-typst-build", "{dir}"],
+
+The steps:
+
+1. Copy the files of $STRICTDOC_TYPST_TEMPLATES (kroki.typ, and the report
+   template and its assets of an image built on this one) into the folder,
+   unless the folder already has a file of that name.
+2. Draw each named PlantUML block of the documents to
+   .kroki-cache/<name>.svg with the PlantUML jar, in one Java run, and list
+   the names in .kroki-cache/manifest.json. kroki.typ shows the SVG files of
+   the listed names in place of their blocks. Other diagrams stay source text.
+3. Compile each document to a PDF in the folder, named with
+   $STRICTDOC_TYPST_PDF_NAME.
+
+A document is a .typ file that applies a report template with
+"#show: <template>.with(". Only the Python standard library is used.
+
+Environment:
+
+    STRICTDOC_TYPST_TEMPLATES  Default /opt/strictdoc-typst/templates.
+    STRICTDOC_TYPST_PDF_NAME   Default "{file}.pdf". Fields: {file} (the name
+                               of the .typ file without .typ), {doc_no},
+                               {version} and {title} (from the report header).
+    PLANTUML_JAR               Default /opt/plantuml/plantuml.jar.
+    JAVA                       Default "java".
+"""
+
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from typing import Dict, List
+
+TEMPLATES_DIR = os.environ.get(
+    "STRICTDOC_TYPST_TEMPLATES", "/opt/strictdoc-typst/templates"
+)
+PDF_NAME_FORMAT = os.environ.get("STRICTDOC_TYPST_PDF_NAME", "{file}.pdf")
+PLANTUML_JAR = os.environ.get("PLANTUML_JAR", "/opt/plantuml/plantuml.jar")
+JAVA = os.environ.get("JAVA", "java")
+
+CACHE_DIR_NAME = ".kroki-cache"
+
+# StrictDoc writes each diagram as a fenced block with nothing else on the
+# fence lines, and replaces any fence inside the source.
+FENCED_BLOCK_REGEX = re.compile(
+    r"^```(?P<lang>[\w-]+)\n(?P<code>.*?)\n```$", re.MULTILINE | re.DOTALL
+)
+# Kept in step with the name matching of kroki.typ.
+PLANTUML_NAME_REGEX = re.compile(r"@start\w*[ \t]+([\w-]+)")
+DOCUMENT_REGEX = re.compile(r"^#show: [\w-]+\.with\(", re.MULTILINE)
+HEADER_ARGUMENT_REGEX = re.compile(
+    r'^[ \t]+(?P<key>title|doc_no|version):[ \t]*"(?P<value>(?:[^"\\]|\\.)*)"',
+    re.MULTILINE,
+)
+UNSAFE_FILE_NAME_REGEX = re.compile(r'[/\\:*?"<>|\x00-\x1f]')
+
+
+def log(message: str) -> None:
+    print(f"strictdoc-typst-build: {message}", flush=True)  # noqa: T201
+
+
+def stage_templates(path_to_dir: str) -> None:
+    if not os.path.isdir(TEMPLATES_DIR):
+        return
+    for name_ in sorted(os.listdir(TEMPLATES_DIR)):
+        source = os.path.join(TEMPLATES_DIR, name_)
+        target = os.path.join(path_to_dir, name_)
+        if os.path.lexists(target):
+            continue
+        # Copies, not symlinks: typst does not read files outside --root.
+        if os.path.isdir(source):
+            shutil.copytree(source, target)
+        else:
+            shutil.copy2(source, target)
+
+
+def find_documents(path_to_dir: str) -> List[str]:
+    paths = []
+    for name_ in sorted(os.listdir(path_to_dir)):
+        path_ = os.path.join(path_to_dir, name_)
+        if not name_.endswith(".typ") or not os.path.isfile(path_):
+            continue
+        with open(path_, encoding="utf-8") as file_:
+            if DOCUMENT_REGEX.search(file_.read()) is not None:
+                paths.append(path_)
+    return paths
+
+
+def collect_plantuml(paths_to_documents: List[str]) -> Dict[str, str]:
+    """The source of each named PlantUML block, by name."""
+    sources: Dict[str, str] = {}
+    for path_ in paths_to_documents:
+        with open(path_, encoding="utf-8") as file_:
+            content = file_.read()
+        for match_ in FENCED_BLOCK_REGEX.finditer(content):
+            if match_.group("lang") != "plantuml":
+                continue
+            code = match_.group("code").strip()
+            name_match = PLANTUML_NAME_REGEX.search(code)
+            if name_match is None:
+                log(
+                    f"{os.path.basename(path_)}: a PlantUML block without "
+                    "'@startuml' on its first line is shown as source text."
+                )
+                continue
+            sources[name_match.group(1)] = code
+    return sources
+
+
+def render_plantuml(sources: Dict[str, str], path_to_cache: str) -> List[str]:
+    """Draw the diagrams and return the names that have an SVG file."""
+    if len(sources) == 0:
+        return []
+    path_to_sources = os.path.join(path_to_cache, "src")
+    os.makedirs(path_to_sources, exist_ok=True)
+    paths_to_sources = []
+    for name_, code_ in sources.items():
+        path_ = os.path.join(path_to_sources, f"{name_}.puml")
+        with open(path_, "w", encoding="utf-8") as file_:
+            file_.write(code_ + "\n")
+        paths_to_sources.append(path_)
+        # A stale SVG must not stand in for a diagram that fails now.
+        path_to_svg = os.path.join(path_to_cache, f"{name_}.svg")
+        if os.path.exists(path_to_svg):
+            os.remove(path_to_svg)
+
+    log(f"drawing {len(sources)} PlantUML diagram(s).")
+    # One Java run for all diagrams: the JVM start is the slow part. The name
+    # after @startuml names the SVG file.
+    result = subprocess.run(
+        [
+            JAVA,
+            "-Djava.awt.headless=true",
+            "-jar",
+            PLANTUML_JAR,
+            "-tsvg",
+            "-charset",
+            "UTF-8",
+            "-o",
+            os.path.abspath(path_to_cache),
+            *paths_to_sources,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    output = (result.stdout + result.stderr).strip()
+    if output:
+        print(output, flush=True)  # noqa: T201
+    if result.returncode != 0:
+        # PlantUML draws the error into the SVG of the failing diagram, which
+        # the PDF then shows. The other diagrams are fine.
+        log(
+            "PlantUML reported errors (exit code "
+            f"{result.returncode}); the PDF shows them in place of the "
+            "diagrams."
+        )
+    return [
+        name_
+        for name_ in sources
+        if os.path.isfile(os.path.join(path_to_cache, f"{name_}.svg"))
+    ]
+
+
+def unescape_typst_string(value: str) -> str:
+    return re.sub(r"\\(.)", r"\1", value)
+
+
+def pdf_name(path_to_document: str) -> str:
+    with open(path_to_document, encoding="utf-8") as file_:
+        content = file_.read()
+    fields = {"title": "", "doc_no": "", "version": ""}
+    for match_ in HEADER_ARGUMENT_REGEX.finditer(content):
+        key = match_.group("key")
+        if fields[key] == "":
+            fields[key] = unescape_typst_string(match_.group("value"))
+    fields["file"] = os.path.splitext(os.path.basename(path_to_document))[0]
+    fields = {
+        key_: re.sub(r"\s+", "-", UNSAFE_FILE_NAME_REGEX.sub("", value_)).strip(
+            "-"
+        )
+        for key_, value_ in fields.items()
+    }
+    name = PDF_NAME_FORMAT.format(**fields)
+    if not name.endswith(".pdf"):
+        name += ".pdf"
+    return name
+
+
+def main() -> int:
+    if len(sys.argv) != 2:
+        print("usage: strictdoc-typst-build <folder>", file=sys.stderr)  # noqa: T201
+        return 2
+    path_to_dir = os.path.abspath(sys.argv[1])
+    if not os.path.isdir(path_to_dir):
+        print(  # noqa: T201
+            f"strictdoc-typst-build: not a folder: {path_to_dir}",
+            file=sys.stderr,
+        )
+        return 2
+
+    stage_templates(path_to_dir)
+    paths_to_documents = find_documents(path_to_dir)
+    if len(paths_to_documents) == 0:
+        print(  # noqa: T201
+            f"strictdoc-typst-build: no documents in {path_to_dir}.",
+            file=sys.stderr,
+        )
+        return 1
+
+    path_to_cache = os.path.join(path_to_dir, CACHE_DIR_NAME)
+    os.makedirs(path_to_cache, exist_ok=True)
+    rendered = render_plantuml(
+        collect_plantuml(paths_to_documents), path_to_cache
+    )
+    with open(
+        os.path.join(path_to_cache, "manifest.json"), "w", encoding="utf-8"
+    ) as file_:
+        json.dump({"plantuml": sorted(rendered)}, file_, indent=2)
+
+    pdf_names: Dict[str, str] = {}
+    for path_ in paths_to_documents:
+        name = pdf_name(path_)
+        if name in pdf_names:
+            print(  # noqa: T201
+                f"strictdoc-typst-build: {os.path.basename(path_)} and "
+                f"{pdf_names[name]} both make {name}. Change "
+                "STRICTDOC_TYPST_PDF_NAME or the document details.",
+                file=sys.stderr,
+            )
+            return 1
+        pdf_names[name] = os.path.basename(path_)
+        path_to_pdf = os.path.join(path_to_dir, name)
+        result = subprocess.run(
+            ["typst", "compile", "--root", path_to_dir, path_, path_to_pdf],
+            check=False,
+        )
+        if result.returncode != 0:
+            return result.returncode
+        log(f"wrote {name}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

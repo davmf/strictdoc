@@ -4,13 +4,17 @@ includes are read as one document and written back file by file.
 """
 
 import os
+from types import SimpleNamespace
 from typing import Dict, List
 
 import pytest
 
 from strictdoc.backend.sdoc.document_reference import DocumentReference
+from strictdoc.backend.sdoc.models.grammar_element import (
+    GrammarElementFieldSingleChoice,
+)
 from strictdoc.backend.sdoc.models.node import SDocNode, SDocNodeField
-from strictdoc.backend.sysml import node_data, tracker
+from strictdoc.backend.sysml import node_data, tracker, versioning
 from strictdoc.backend.sysml.reader import SysMLReader
 from strictdoc.backend.sysml.sysml_format import SysMLFormat
 from strictdoc.backend.sysml.writer import SysMLTrackerWriter
@@ -342,3 +346,88 @@ def test_10_errors_name_the_file(workspace, file_path, text, message):
     with pytest.raises(tracker.TrackerError) as exception_info:
         _read(workspace)
     assert message in exception_info.value.to_print_message()
+
+
+LIBRARY_FILES: Dict[str, str] = {
+    "library/Choices.sysml": """\
+package Choices {
+    enum def Status {
+        enum Draft;
+        enum Approved;
+    }
+}
+""",
+    "TRK-REQ/TRK-REQ.sysml": """\
+package 'TRK-REQ' {
+    @StrictDocWorkspace::Tracker { title = "Requirements"; kind = "requirements"; prefix = "REQ"; }
+
+    public import 'REQ-001'::*;
+}
+""",
+    "TRK-REQ/REQ-001.sysml": """\
+package 'REQ-001' {
+    private import Choices::*;
+    private import 'TRK-REQ'::*;
+
+    requirement <'REQ-001'> 'First' {
+        attribute status : Status = Status::Draft;
+    }
+}
+""",
+}
+
+
+def _library_project(tmp_path, files: Dict[str, str]):
+    """Write the files, find them as the document finder does, read them."""
+    for path_, text_ in files.items():
+        full_path = tmp_path / path_
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        full_path.write_text(text_, encoding="utf-8")
+    format_ = SysMLFormat(tracker_layout=True)
+    documents = []
+    for path_ in sorted(files):
+        full_path = str(tmp_path / path_)
+        if format_.is_document_file(full_path):
+            documents.append(
+                SysMLReader.read_from_tracker_file(
+                    full_path, relative_path=path_
+                )
+            )
+    issues: List[str] = []
+    index = SimpleNamespace(
+        document_tree=SimpleNamespace(document_list=documents),
+        validation_index=SimpleNamespace(
+            add_issue=lambda _document, message: issues.append(message)
+        ),
+    )
+    format_.traceability_index_build_finished(index)
+    return format_, documents, issues
+
+
+def test_11_libraries_give_choice_options_in_the_tracker_layout(tmp_path):
+    _, documents, issues = _library_project(tmp_path, LIBRARY_FILES)
+    assert issues == []
+    (document,) = documents
+    assert document.grammar is not None
+    status_field = document.grammar.elements_by_type["REQUIREMENT"].fields_map[
+        "STATUS"
+    ]
+    assert isinstance(status_field, GrammarElementFieldSingleChoice)
+    assert status_field.options == ["Draft", "Approved"]
+
+
+def test_12_a_versioning_library_outside_the_trackers_is_found(tmp_path):
+    files = dict(LIBRARY_FILES)
+    files["library/StrictDocVersioning.sysml"] = versioning.LIBRARY_TEXT
+    format_, _, _ = _library_project(tmp_path, files)
+    project_config = SimpleNamespace(input_paths=[str(tmp_path)])
+    assert format_.ensure_library(project_config) is None
+    assert not (tmp_path / versioning.LIBRARY_FILE_NAME).exists()
+
+
+def test_13_without_a_versioning_library_the_library_is_written(tmp_path):
+    format_, _, _ = _library_project(tmp_path, LIBRARY_FILES)
+    project_config = SimpleNamespace(input_paths=[str(tmp_path)])
+    assert format_.ensure_library(project_config) == str(
+        tmp_path / versioning.LIBRARY_FILE_NAME
+    )

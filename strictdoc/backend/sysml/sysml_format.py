@@ -16,7 +16,10 @@ the edit form shows as drop-down lists. See choices.py.
 
 SysMLFormat(tracker_layout=True) reads the tracker layout, one file per
 item: each tracker file is a document made of the files it includes, and
-the other files are not documents. See tracker.py.
+the other files are not documents. See tracker.py. The files that no
+tracker includes are libraries: their `enum def` elements give the options
+of choice fields, and a StrictDocVersioning package among them is the
+versioning library.
 """
 
 import os
@@ -30,6 +33,8 @@ from strictdoc.backend.sysml import (
     version_tracking,
     versioning,
 )
+from strictdoc.backend.sysml.model import SysMLPackage
+from strictdoc.backend.sysml.parser import SysMLParser
 from strictdoc.backend.sysml.reader import SysMLReader
 from strictdoc.backend.sysml.version_tracking import TargetVersionLookup
 from strictdoc.backend.sysml.writer import SysMLTrackerWriter, SysMLWriter
@@ -50,6 +55,12 @@ class SysMLFormat(Format):
         # The latest traceability index, to look up the current version of
         # a trace target in another document.
         self._traceability_index: Optional[TraceabilityIndex] = None
+        # Tracker layout: the .sysml files that are not trackers. Those that
+        # no tracker includes are libraries.
+        self._other_files: Set[str] = set()
+        # The top-level package names of the libraries, after the index is
+        # built.
+        self._library_package_names: Set[str] = set()
 
     def __getstate__(self) -> Dict[str, Any]:
         # The project config, and with it this format, is pickled for
@@ -88,7 +99,10 @@ class SysMLFormat(Format):
 
     def is_document_file(self, path: str) -> bool:
         if self.tracker_layout:
-            return tracker.is_tracker_file(path)
+            if tracker.is_tracker_file(path):
+                return True
+            self._other_files.add(os.path.abspath(path))
+            return False
         return True
 
     def read_from_file(
@@ -133,7 +147,10 @@ class SysMLFormat(Format):
         self, traceability_index: "TraceabilityIndex"
     ) -> None:
         self._traceability_index = traceability_index
-        choices.apply_choice_fields(traceability_index)
+        library_definitions: choices.EnumDefinitions = {}
+        if self.tracker_layout:
+            library_definitions = self._read_libraries(traceability_index)
+        choices.apply_choice_fields(traceability_index, library_definitions)
         if self.item_versioning:
             version_tracking.report_issues(traceability_index)
         if self.tracker_layout:
@@ -151,7 +168,10 @@ class SysMLFormat(Format):
         Write the StrictDocVersioning library to the project root, unless
         the project already has it. Returns the path when it was written.
         """
-        if version_tracking.has_library(self._traceability_index):
+        if (
+            versioning.LIBRARY_PACKAGE in self._library_package_names
+            or version_tracking.has_library(self._traceability_index)
+        ):
             return None
         if (
             project_config.input_paths is None
@@ -162,6 +182,41 @@ class SysMLFormat(Format):
         if not os.path.isdir(project_root):
             project_root = os.path.dirname(project_root)
         return versioning.ensure_library(project_root)
+
+    def _read_libraries(
+        self, traceability_index: "TraceabilityIndex"
+    ) -> choices.EnumDefinitions:
+        """
+        Read the files that no tracker includes. Returns their enum
+        definitions and records their top-level package names.
+        """
+        included: Set[str] = set()
+        for document_ in traceability_index.document_tree.document_list:
+            tracker_data = node_data.get_tracker(document_)
+            if tracker_data is not None:
+                included.update(
+                    os.path.abspath(path_) for path_ in tracker_data.file_paths
+                )
+        definitions: choices.EnumDefinitions = {}
+        package_names: Set[str] = set()
+        for path_ in sorted(self._other_files - included):
+            if not os.path.isfile(path_):
+                continue
+            try:
+                model = SysMLParser.parse_file(path_)
+            except Exception:  # noqa: BLE001
+                # The Pilot reports a broken library. StrictDoc reads only
+                # the choices and the versioning library from it.
+                continue
+            definitions.update(choices.collect_enum_definitions(model))
+            package_names.update(
+                member_.name
+                for member_ in model.members
+                if isinstance(member_, SysMLPackage)
+                and member_.name is not None
+            )
+        self._library_package_names = package_names
+        return definitions
 
     @staticmethod
     def supports_grammar() -> bool:

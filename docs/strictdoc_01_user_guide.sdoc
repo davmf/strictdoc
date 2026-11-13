@@ -6148,6 +6148,104 @@ triggers a rebuild for the item and folder files that change.
 [[/SECTION]]
 
 [[SECTION]]
+MID: 3f9c2b7e8d4a4c1e9b6f0a2d5e7c8b91
+TITLE: Libraries in the tracker layout
+
+[TEXT]
+MID: 6a1d4e8b2c7f4a3b9e5d0c8f1b2a7e64
+STATEMENT: >>>
+In the tracker layout, a SysML file that no tracker includes is a library,
+for example the files of a ``library`` folder. A library is not a document,
+but StrictDoc reads it:
+
+- The ``enum def`` elements of the libraries give the options of choice
+  fields, as those of documents do. A requirement finds the enumeration
+  through the imports of its item file.
+- A ``StrictDocVersioning`` package in a library is the versioning library,
+  so a save does not write another one to the project root.
+
+The metadata of trackers, folders and the model root is defined by the
+``StrictDocWorkspace`` library. The Pilot needs it to check the model:
+
+.. code-block:: text
+
+    library package StrictDocWorkspace {
+        private import ScalarValues::*;
+
+        metadata def Model { attribute title : String; }
+        metadata def Tracker { attribute title : String; attribute kind : String; attribute prefix : String; }
+        metadata def Folder { attribute title : String; }
+        metadata def DiagramView { attribute options : String; attribute plantuml : String; }
+    }
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
+MID: c4e7a9d2b1f84e6a8d3c5b0f9e2a7d13
+TITLE: Converting a model to the tracker layout
+
+[TEXT]
+MID: 8b2f6d1e4a9c4b7e8f3a5d0c2e1b9a76
+STATEMENT: >>>
+``tracker_convert`` converts a model of one file per document to the
+tracker layout. Run it on the model folder, then add
+``tracker_layout=True`` to ``SysMLFormat`` in ``strictdoc_config.py``:
+
+.. code-block:: text
+
+    python -m strictdoc.backend.sysml.tracker_convert model --title "Kettle"
+
+Each document file becomes a tracker, in a folder ``TRK-<PREFIX>`` of the
+model folder, next to the model root ``MODEL.sysml``:
+
+- The top-level package becomes the tracker, titled by the package name,
+  so the document keeps its title. Its first doc comment becomes the doc of
+  the tracker.
+- A nested package becomes a folder ``<PREFIX>-F-<TITLE>``.
+- An element of a package becomes an item, named by its short name. A
+  design element without a short name becomes ``<PREFIX>-<name>``, which is
+  then its UID. A requirement without one gets the next number,
+  ``<PREFIX>-<NNN>``.
+- ``dependency from A to B`` and ``satisfy R by A.b`` go to the item of
+  ``A`` when ``A`` is in the same document. Other traces stay where they
+  are, in an item ``<PREFIX>-TRACES``.
+- Line notes and comments go to the item of the next element.
+- Each item gets the imports of its packages, with the names of the
+  converted packages replaced by their tracker IDs, and an import of its
+  tracker, so that the names it uses resolve as before.
+- ``_assets`` folders of images move to the tracker of the document that
+  uses them.
+
+The text of elements and traces is copied as written. The tracker and
+folder files are written as StrictDoc writes them, so saving a document
+does not rewrite them. Libraries, the files of a ``library`` or
+``_library`` folder, are not converted, and the ``StrictDocWorkspace``
+library is added when the model has none.
+
+The prefix of a tracker comes from the short names of its document
+(``SYS`` for ``SYS-THR-001`` and ``SYS-TAT-001``), or from the initials of
+its title. ``--overrides`` names a JSON file that sets the prefix, tracker
+ID or kind of a document:
+
+.. code-block:: text
+
+    {"requirements/system.sysml": {"prefix": "SYS"}}
+
+``--dry-run`` prints the trackers and writes nothing. The conversion stops
+with an error that names the file and line of anything it cannot convert:
+a second doc comment in a package, a package with a short name, text the
+parser did not read, or a dependency in a requirements document from a
+requirement of another document.
+
+An import script that writes one file per document can call
+``tracker_convert.convert()``, which takes and returns the texts of the
+files, and write the result.
+<<<
+
+[[/SECTION]]
+
+[[SECTION]]
 MID: 95a3dacaaa314b27ba3a80425252ad98
 UID: SECTION-UG-SysML-workspace
 TITLE: Workspace screen

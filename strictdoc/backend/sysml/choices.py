@@ -29,6 +29,7 @@ from strictdoc.backend.sdoc.models.document import SDocDocument
 from strictdoc.backend.sdoc.models.grammar_element import (
     GrammarElementFieldSingleChoice,
 )
+from strictdoc.backend.sdoc.models.node import SDocNode
 from strictdoc.backend.sysml import node_data
 from strictdoc.backend.sysml.model import (
     SysMLElement,
@@ -88,16 +89,20 @@ def literal_reference(type_text: str, literal: str) -> str:
     return f"{type_text}::{literal_text}"
 
 
-def apply_choice_fields(traceability_index: "TraceabilityIndex") -> None:
+def apply_choice_fields(
+    traceability_index: "TraceabilityIndex",
+    library_definitions: Optional[EnumDefinitions] = None,
+) -> None:
     """
     Turn the enum-typed fields of all requirements packages into
     SingleChoice fields. A field keeps its String type when no document
-    of the project defines its enumeration.
+    of the project, and none of library_definitions (the enums of the
+    files that are not documents), defines its enumeration.
     """
     document_list: List[SDocDocument] = (
         traceability_index.document_tree.document_list
     )
-    definitions: EnumDefinitions = {}
+    definitions: EnumDefinitions = dict(library_definitions or {})
     for document_ in document_list:
         definitions.update(node_data.get_enum_definitions(document_))
     if len(definitions) == 0:
@@ -109,7 +114,7 @@ def apply_choice_fields(traceability_index: "TraceabilityIndex") -> None:
         element = document_.grammar.elements_by_type.get("REQUIREMENT")
         if element is None:
             continue
-        namespaces = _imported_namespaces(node_data.get_imports(document_))
+        namespaces = _imported_namespaces(_document_imports(document_))
         for field_title_, type_text_ in choice_types.items():
             literals = resolve_enum(type_text_, namespaces, definitions)
             if literals is None:
@@ -173,6 +178,18 @@ def _collect_enum_definitions(
                 and not child_.is_definition
                 and child_.name is not None
             ]
+
+
+def _document_imports(document: SDocDocument) -> List[str]:
+    """
+    The imports of a document: those of its packages and, in the tracker
+    layout, those of its item files, where the imports of a requirement are.
+    """
+    imports: List[str] = list(node_data.get_imports(document))
+    for node_ in document.iterate_nodes():
+        if isinstance(node_, SDocNode):
+            imports.extend(node_data.get_imports(node_))
+    return list(dict.fromkeys(imports))
 
 
 def _imported_namespaces(imports: List[str]) -> List[Tuple[str, ...]]:

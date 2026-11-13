@@ -53,13 +53,9 @@ Other tools in the image: `typst`, `plantuml`, `git`,
 
 ## From PowerShell
 
-The image carries `strictdoc.ps1`, a PowerShell script that runs it on the
-project in the current folder (or `-Project`). It needs only Docker and the
-image. Get it from the image, with the image's name as its default:
-
-    docker run --rm --entrypoint strictdoc-launcher strictdoc:local > strictdoc.ps1
-
-Then:
+`strictdoc.ps1` runs the image on the project in the current folder (or
+`-Project`). It needs only Docker and the image, so copy it anywhere, for
+example next to the image you distribute:
 
     ./strictdoc.ps1 new -Title "My project"
     ./strictdoc.ps1 server -Watch    # Ctrl+C stops it
@@ -67,10 +63,10 @@ Then:
     ./strictdoc.ps1 shell
     ./strictdoc.ps1 help
 
-Arguments after the command go to StrictDoc. `-Image` or
-`$env:STRICTDOC_IMAGE` choose another image. For an image under another
-name, give the name: `strictdoc-launcher registry.example.com/strictdoc:1.0`.
-An image built on this one sets `STRICTDOC_IMAGE_NAME` to its name.
+Arguments after the command go to StrictDoc. The image is `-Image`, else
+`$env:STRICTDOC_IMAGE`, else `strictdoc:local`. For another image, such as
+one built on this one or one from a registry, set it once in the pwsh
+profile: `$env:STRICTDOC_IMAGE = "registry.example.com/strictdoc:1.0"`.
 
 ## A new project
 

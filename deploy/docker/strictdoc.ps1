@@ -15,13 +15,13 @@ Runs StrictDoc in its Docker image, on the project in the current folder
 Arguments after the command go to StrictDoc, for example
   ./strictdoc.ps1 export --formats json --output-dir build/json
 
-The image is -Image, else $env:STRICTDOC_IMAGE, else $DefaultImage below.
-The image prints this script with its own name as $DefaultImage:
+The image is -Image, else $env:STRICTDOC_IMAGE, else strictdoc:local. For
+an image built on this one, set it once, for example in the pwsh profile:
 
-  docker run --rm --entrypoint strictdoc-launcher <image> > strictdoc.ps1
+  $env:STRICTDOC_IMAGE = "my-strictdoc:local"
 
-The script needs only Docker and the image. The container runs as you, so
-the files it writes belong to you.
+The script needs only Docker and the image, so it can be copied anywhere.
+The container runs as you, so the files it writes belong to you.
 
 .EXAMPLE
 ./strictdoc.ps1 new -Title "Kettle"
@@ -46,10 +46,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# strictdoc-launcher of the image replaces this name with the image's own.
-$DefaultImage = "strictdoc:local"
 if (-not $Image) {
-    $Image = if ($env:STRICTDOC_IMAGE) { $env:STRICTDOC_IMAGE } else { $DefaultImage }
+    $Image = if ($env:STRICTDOC_IMAGE) { $env:STRICTDOC_IMAGE } else { "strictdoc:local" }
 }
 
 function Invoke-Docker([string[]] $Arguments) {

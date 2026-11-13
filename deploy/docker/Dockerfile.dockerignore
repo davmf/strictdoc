@@ -10,6 +10,4 @@
 **/Output
 !deploy/docker/strictdoc-typst-build
 !deploy/docker/strictdoc-new-project
-!deploy/docker/strictdoc.ps1
-!deploy/docker/strictdoc-launcher
 !deploy/docker/kroki.typ

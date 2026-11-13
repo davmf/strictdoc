@@ -67,11 +67,6 @@ RUN pip install --no-cache-dir /src && rm -rf /src
 COPY --chmod=755 deploy/docker/strictdoc-typst-build /usr/local/bin/strictdoc-typst-build
 # Sets up a new project in the tracker layout. See README.md.
 COPY --chmod=755 deploy/docker/strictdoc-new-project /usr/local/bin/strictdoc-new-project
-# The PowerShell script that runs the image, which strictdoc-launcher prints
-# with the image's name. An image built on this one sets
-# STRICTDOC_IMAGE_NAME to its own name.
-COPY deploy/docker/strictdoc.ps1 /usr/local/share/strictdoc/strictdoc.ps1
-COPY --chmod=755 deploy/docker/strictdoc-launcher /usr/local/bin/strictdoc-launcher
 COPY deploy/docker/kroki.typ /opt/strictdoc-typst/templates/kroki.typ
 
 # The project folder usually belongs to a host user, so Git would refuse to
@@ -87,8 +82,7 @@ RUN groupadd -g "$STRICTDOC_GID" strictdoc \
 # the caches somewhere every user can write.
 ENV XDG_CACHE_HOME=/tmp/.cache \
     PLANTUML_JAR=/opt/plantuml/plantuml.jar \
-    STRICTDOC_TYPST_TEMPLATES=/opt/strictdoc-typst/templates \
-    STRICTDOC_IMAGE_NAME=strictdoc:local
+    STRICTDOC_TYPST_TEMPLATES=/opt/strictdoc-typst/templates
 
 USER strictdoc
 WORKDIR /data

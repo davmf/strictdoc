@@ -65,6 +65,8 @@ RUN pip install --no-cache-dir /src && rm -rf /src
 # The PDF build of typst_pdf_command. An image built on this one adds its
 # report template and assets to /opt/strictdoc-typst/templates.
 COPY --chmod=755 deploy/docker/strictdoc-typst-build /usr/local/bin/strictdoc-typst-build
+# Sets up a new project in the tracker layout. See README.md.
+COPY --chmod=755 deploy/docker/strictdoc-new-project /usr/local/bin/strictdoc-new-project
 COPY deploy/docker/kroki.typ /opt/strictdoc-typst/templates/kroki.typ
 
 # The project folder usually belongs to a host user, so Git would refuse to

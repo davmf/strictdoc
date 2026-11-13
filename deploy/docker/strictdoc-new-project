@@ -1,0 +1,181 @@
+#!/usr/bin/env python3
+"""
+Set up a new StrictDoc project in the SysML tracker layout.
+
+Usage: strictdoc-new-project --title "My project" [folder]
+
+The folder (default: the current folder) gets:
+
+    strictdoc_config.py                  tracker layout, item versioning,
+                                         Typst PDF export
+    model/MODEL.sysml                    the model root, without trackers
+    model/library/StrictDocWorkspace.sysml
+    model/library/StrictDocVersioning.sysml
+    .gitignore                           output/
+
+and a Git repository, unless it is in one. Then start the server and add
+trackers in the workspace (/workspace). The script stops, and writes
+nothing, when one of these files exists.
+
+The Typst settings of the config come from the environment, so that an
+image built on this one can set its own report template:
+
+    STRICTDOC_NEW_TYPST_TEMPLATE         Default strictdoc-report.
+    STRICTDOC_NEW_TYPST_DEFAULT_DOC_NO   Default empty.
+    STRICTDOC_NEW_TYPST_DEFAULT_VERSION  Default empty.
+    STRICTDOC_NEW_TYPST_BUILDER_IMAGE    The image that builds the PDFs of
+                                         an external template outside this
+                                         image. Default empty.
+"""
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+
+from strictdoc.backend.sysml import tracker_convert, versioning
+
+DEFAULT_TEMPLATE = "strictdoc-report"
+
+
+def _literal(text: str) -> str:
+    """A Python string literal in double quotes."""
+    return json.dumps(text, ensure_ascii=False)
+
+
+def config_text(title: str) -> str:
+    template = (
+        os.environ.get("STRICTDOC_NEW_TYPST_TEMPLATE") or DEFAULT_TEMPLATE
+    )
+    doc_no = os.environ.get("STRICTDOC_NEW_TYPST_DEFAULT_DOC_NO", "")
+    version = os.environ.get("STRICTDOC_NEW_TYPST_DEFAULT_VERSION", "")
+    builder_image = os.environ.get("STRICTDOC_NEW_TYPST_BUILDER_IMAGE", "")
+    external = template != DEFAULT_TEMPLATE
+
+    typst_lines = []
+    if external:
+        typst_lines.append(f"        typst_template={_literal(template)},")
+        # The build of an external template draws the diagrams.
+        typst_lines.append("        typst_kroki=True,")
+    else:
+        # In the image, strictdoc-typst-build draws the PlantUML diagrams.
+        # Elsewhere, typst compile shows them as source text.
+        typst_lines.append("        typst_kroki=in_image,")
+    if doc_no:
+        typst_lines.append(f"        typst_default_doc_no={_literal(doc_no)},")
+    if version:
+        typst_lines.append(
+            f"        typst_default_version={_literal(version)},"
+        )
+    if builder_image:
+        typst_lines.append(
+            f"        typst_pdf_builder_image={_literal(builder_image)},"
+        )
+    typst_lines.extend(
+        [
+            "        typst_pdf_command=(",
+            '            ["strictdoc-typst-build", "{dir}"] if in_image else None',
+            "        ),",
+        ]
+    )
+    typst = "\n".join(typst_lines)
+    return f'''\
+"""StrictDoc project configuration: a SysML model in the tracker layout."""
+
+import shutil
+
+from strictdoc.backend.sysml.sysml_format import SysMLFormat
+from strictdoc.core.project_config import ProjectConfig
+
+
+def create_config() -> ProjectConfig:
+    # strictdoc-typst-build is in the StrictDoc Docker image.
+    in_image = shutil.which("strictdoc-typst-build") is not None
+    return ProjectConfig(
+        project_title={_literal(title)},
+        # The model is in the tracker layout, one file per item: each
+        # model/TRK-*/TRK-*.sysml file is a document.
+        formats=[
+            *ProjectConfig.default_formats(),
+            SysMLFormat(item_versioning=True, tracker_layout=True),
+        ],
+        project_features=[
+            "TYPST_PDF",
+            "TABLE_SCREEN",
+            "TRACEABILITY_SCREEN",
+            "DEEP_TRACEABILITY_SCREEN",
+            "SEARCH",
+        ],
+        include_doc_paths=["/model/**"],
+{typst}
+    )
+'''
+
+
+def model_root_text(title: str) -> str:
+    escaped = title.replace("\\", "\\\\").replace('"', '\\"')
+    return (
+        "package 'MODEL' {\n"
+        f'    @StrictDocWorkspace::Model {{ title = "{escaped}"; }}\n'
+        "}\n"
+    )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Set up a new StrictDoc project in the tracker layout."
+    )
+    parser.add_argument("--title", required=True, help="The project title.")
+    parser.add_argument("folder", nargs="?", default=".")
+    arguments = parser.parse_args()
+
+    folder = os.path.abspath(arguments.folder)
+    files = {
+        "strictdoc_config.py": config_text(arguments.title),
+        "model/MODEL.sysml": model_root_text(arguments.title),
+        "model/library/StrictDocWorkspace.sysml": (
+            tracker_convert.WORKSPACE_LIBRARY_TEXT
+        ),
+        "model/library/StrictDocVersioning.sysml": versioning.LIBRARY_TEXT,
+        ".gitignore": "output/\n",
+    }
+    existing = [
+        path_ for path_ in files if os.path.exists(os.path.join(folder, path_))
+    ]
+    if len(existing) > 0:
+        print(  # noqa: T201
+            "strictdoc-new-project: these files exist already, nothing was "
+            "written: " + ", ".join(existing),
+            file=sys.stderr,
+        )
+        return 1
+
+    for path_, text_ in files.items():
+        full_path = os.path.join(folder, path_)
+        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+        with open(full_path, "w", encoding="utf-8") as file_:
+            file_.write(text_)
+        print(f"wrote {path_}")  # noqa: T201
+
+    in_repository = (
+        subprocess.run(
+            ["git", "-C", folder, "rev-parse", "--is-inside-work-tree"],
+            capture_output=True,
+            check=False,
+        ).returncode
+        == 0
+    )
+    if not in_repository:
+        subprocess.run(["git", "-C", folder, "init", "-q"], check=True)
+        print("initialised a Git repository")  # noqa: T201
+
+    print(  # noqa: T201
+        "\nNext: start the server and add trackers at /workspace, e.g.\n"
+        "  strictdoc server . --host 0.0.0.0 --watch"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

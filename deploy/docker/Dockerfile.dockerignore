@@ -9,4 +9,5 @@
 **/output
 **/Output
 !deploy/docker/strictdoc-typst-build
+!deploy/docker/strictdoc-new-project
 !deploy/docker/kroki.typ

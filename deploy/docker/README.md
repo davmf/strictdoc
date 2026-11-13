@@ -48,7 +48,27 @@ The web server:
 For a shared server with single sign-on, see `deploy/server`, which builds
 this image.
 
-Other tools in the image: `typst`, `plantuml`, `git`.
+Other tools in the image: `typst`, `plantuml`, `git`,
+`strictdoc-typst-build` and `strictdoc-new-project`.
+
+## A new project
+
+`strictdoc-new-project` sets up a new project in the SysML tracker layout:
+a `strictdoc_config.py` with the tracker layout, item versioning and the
+Typst PDF export, the model root `model/MODEL.sysml`, the StrictDoc
+libraries, a `.gitignore`, and a Git repository. In an empty folder:
+
+    docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/data" \
+        --entrypoint strictdoc-new-project strictdoc:local --title "My project"
+
+Then start the server (see above) and add trackers, folders and items at
+`/workspace`. The script writes nothing if one of its files exists.
+
+An image built on this one sets the Typst settings of new projects with
+`STRICTDOC_NEW_TYPST_TEMPLATE`, `STRICTDOC_NEW_TYPST_DEFAULT_DOC_NO`,
+`STRICTDOC_NEW_TYPST_DEFAULT_VERSION` and
+`STRICTDOC_NEW_TYPST_BUILDER_IMAGE` (the image that builds the PDFs outside
+this one). By default a new project uses StrictDoc's own template.
 
 ## PDFs with diagrams
 
